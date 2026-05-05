@@ -1,8 +1,8 @@
 "use client";
 
 import { Download, Search, Filter, ChevronDown, Tag, Trash2, Edit3, MoreHorizontal } from "lucide-react";
-import { CustomSelect } from "./UI/CustomSelect";
-import { CustomModal } from "./UI/CustomModal";
+import { CustomSelect } from "./ui/CustomSelect";
+import { CustomModal } from "./ui/CustomModal";
 
 interface LeadsTableProps {
   leads: any[];
