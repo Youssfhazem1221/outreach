@@ -283,7 +283,7 @@ export function LeadsTable({
           <table className="w-full text-xs text-left">
             <thead className="text-[10px] uppercase bg-black/40 text-muted-foreground sticky top-0 z-10 backdrop-blur-md">
               <tr>
-                <th className="px-6 py-3 w-10">
+                <th className="px-3 py-1.5 w-10">
                   <input 
                     type="checkbox" 
                     checked={selectedIds.length > 0 && selectedIds.length === filteredLeads.length}
@@ -291,15 +291,15 @@ export function LeadsTable({
                     className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-3 font-semibold">Name</th>
-                <th className="px-6 py-3 font-semibold">Phone / Email</th>
-                <th className="px-6 py-3 font-semibold">Location</th>
-                <th className="px-6 py-3 font-semibold">Niche</th>
-                <th className="px-6 py-3 font-semibold">Added</th>
-                <th className="px-6 py-3 font-semibold">Labels</th>
-                <th className="px-6 py-3 font-semibold">Status</th>
-                {isAdmin && <th className="px-6 py-3 font-semibold">Owner</th>}
-                <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                <th className="px-3 py-1.5 font-semibold">Name</th>
+                <th className="px-3 py-1.5 font-semibold">Phone / Email</th>
+                <th className="px-3 py-1.5 font-semibold">Location</th>
+                <th className="px-3 py-1.5 font-semibold">Niche</th>
+                <th className="px-3 py-1.5 font-semibold">Added</th>
+                <th className="px-3 py-1.5 font-semibold">Labels</th>
+                <th className="px-3 py-1.5 font-semibold">Status</th>
+                {isAdmin && <th className="px-3 py-1.5 font-semibold">Owner</th>}
+                <th className="px-3 py-1.5 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -309,7 +309,7 @@ export function LeadsTable({
                   onClick={() => onLeadClick(lead)}
                   className={`hover:bg-white/5 transition-colors group cursor-pointer ${selectedIds.includes(lead.id) ? 'bg-emerald-500/5' : ''}`}
                 >
-                  <td className="px-6 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
                       checked={selectedIds.includes(lead.id)}
@@ -318,9 +318,9 @@ export function LeadsTable({
                       className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
                     />
                   </td>
-                  <td className="px-6 py-3">
+                  <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium text-white">{lead.name}</div>
+                      <div className="font-semibold text-[13px] text-white">{lead.name}</div>
                       {lead.source === "groq_simulated" && (
                         <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider">Sim</span>
                       )}
@@ -335,7 +335,7 @@ export function LeadsTable({
                     <div>{lead.city || "—"}</div>
                     {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
                   </td>
-                  <td className="px-6 py-3">{lead.niche}</td>
+                  <td className="px-3 py-2">{lead.niche}</td>
                   <td className="px-6 py-3">
                     <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
@@ -384,7 +384,7 @@ export function LeadsTable({
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-3 text-right">
+                  <td className="px-3 py-2 text-right">
                     <button className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                       View Details
                     </button>
