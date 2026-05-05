@@ -124,7 +124,7 @@ export function LeadsTable({
       <div className="w-full max-w-7xl flex flex-col h-full mx-auto">
         <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-1">All Leads</h1>
+          <h1 className="text-2xl font-bold mb-1 text-emerald-400">All Leads <span className="text-[10px] text-muted-foreground ml-2 px-2 py-0.5 bg-white/5 rounded-full font-mono border border-white/10 uppercase tracking-widest">Premium Build v2.1</span></h1>
           <p className="text-muted-foreground text-xs">Manage and export your complete lead database.</p>
         </div>
         <div className="flex gap-3">
