@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { LayoutDashboard, Users, Zap, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Zap, Settings, LogOut, BarChart2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-type ViewType = "pipeline" | "table" | "engine" | "settings";
+type ViewType = "pipeline" | "table" | "engine" | "settings" | "dashboard";
 
 interface SidebarProps {
   currentView: ViewType;
@@ -18,6 +18,7 @@ export function Sidebar({ currentView, setCurrentView }: SidebarProps) {
     { id: "pipeline", label: "Pipeline", icon: LayoutDashboard },
     { id: "table", label: "All Leads", icon: Users },
     { id: "engine", label: "Lead Engine", icon: Zap },
+    { id: "dashboard", label: "Analytics", icon: BarChart2 },
   ];
 
   if (role === "admin") {

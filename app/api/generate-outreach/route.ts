@@ -1,24 +1,32 @@
+export const dynamic = "force-dynamic";
 import { NextRequest } from "next/server";
-import { adminAuth } from "@/lib/firebaseAdmin";
+import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { streamText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 
-export const runtime = 'edge';
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY || "",
-});
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
     const { leadData, offer, idToken } = await req.json();
 
-    if (!idToken) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    if (!idToken || !adminAuth || !adminDb) {
+      return new Response(JSON.stringify({ error: "Unauthorized or System Error" }), { status: 401 });
     }
 
     // Verify Firebase Auth Token
-    await adminAuth!.verifyIdToken(idToken);
+    const decodedToken = await adminAuth!.verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+
+    // Multi-tier API Key Lookup: User Profile -> Global Settings -> Env Var
+    const userSettingsDoc = await adminDb!.collection("users").doc(userId).collection("settings").doc("api_keys").get();
+    const globalSettingsDoc = await adminDb!.collection("settings").doc("api_keys").get();
+    
+    const GROQ_API_KEY = userSettingsDoc.data()?.groq || globalSettingsDoc.data()?.groq || process.env.GROQ_API_KEY;
+
+    if (!GROQ_API_KEY) {
+      return new Response(JSON.stringify({ error: "Groq API key is missing. Please add one in Settings." }), { status: 400 });
+    }
 
     const prompt = `
 You are an expert bilingual outreach copywriter (English and Egyptian Arabic).
@@ -49,15 +57,23 @@ Return ONLY a JSON object (no markdown formatting, no \`\`\`json) with these exa
 }
 `;
 
-    const result = streamText({
-      model: groq("llama-3.1-8b-instant"),
-      prompt: prompt,
-      temperature: 0.3,
-    });
-
-    return result.toDataStreamResponse();
-  } catch (error: any) {
-    console.error("Groq Outreach Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    try {
+      const groq = createGroq({ apiKey: GROQ_API_KEY });
+      const result = streamText({
+        model: groq("llama-3.1-8b-instant"),
+        prompt: prompt,
+        temperature: 0.3,
+      });
+      
+      return result.toTextStreamResponse();
+    } catch (apiError: unknown) {
+      const apiMessage = apiError instanceof Error ? apiError.message : String(apiError);
+      console.error("Groq API Error:", apiMessage);
+      throw new Error(`AI generation failed: ${apiMessage}`);
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Groq Outreach Error:", message);
+    return new Response(JSON.stringify({ error: message }), { status: 500 });
   }
 }

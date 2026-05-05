@@ -1,33 +1,143 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Phone, Mail, Globe, MapPin, Building, Star, MessageSquare } from "lucide-react";
-import { useState } from "react";
+import { X, Phone, Mail, Globe, MapPin, Building, Plus, CheckCircle2, Users, Save, FileText, ChevronDown, Loader2, Send, History, MessageSquare, Link, Check } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect, useRef } from "react";
+import { db } from "@/lib/firebaseClient";
+import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 
 interface LeadDetailDrawerProps {
   lead: any | null;
   isOpen: boolean;
   onClose: () => void;
   onUpdateStatus: (id: string, newStatus: string) => void;
-  onGenerateOutreach: (leadId: string, offer: string) => Promise<void>;
 }
 
-export function LeadDetailDrawer({ lead, isOpen, onClose, onUpdateStatus, onGenerateOutreach }: LeadDetailDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"details" | "outreach">("details");
-  const [offer, setOffer] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
+export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateStatus }: LeadDetailDrawerProps) {
+  const { user } = useAuth();
+  const [lead, setLead] = useState<any>(null);
+  const [globalLabels, setGlobalLabels] = useState<{id: string, name: string, color: string}[]>([]);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newNote, setNewNote] = useState("");
+  const [isPostingNote, setIsPostingNote] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleGenerate = async () => {
-    if (!lead || !offer) return;
-    setIsGenerating(true);
-    await onGenerateOutreach(lead.id, offer);
-    setIsGenerating(false);
+  // Sync local state when lead prop changes
+  useEffect(() => {
+    if (initialLead) {
+      setLead({ ...initialLead });
+      setIsEditing(false);
+    }
+  }, [initialLead, isOpen]);
+
+  // Close label dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowLabelDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch global labels when drawer opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchLabels = async () => {
+      try {
+        const labelDoc = await getDoc(doc(db, "settings", "labels"));
+        if (labelDoc.exists()) {
+          setGlobalLabels(labelDoc.data().items || []);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchLabels();
+  }, [isOpen]);
+
+  const toggleLeadLabel = async (label: {id: string, name: string, color: string}) => {
+    if (!lead) return;
+    const currentLabels = lead.labels || [];
+    const hasLabel = currentLabels.some((l: any) => l.id === label.id);
+    try {
+      const updatedLabels = hasLabel
+        ? currentLabels.filter((l: any) => l.id !== label.id)
+        : [...currentLabels, label];
+      setLead({ ...lead, labels: updatedLabels });
+      await updateDoc(doc(db, "leads", lead.id), { labels: updatedLabels });
+    } catch (e) {
+      console.error("Failed to update labels", e);
+    }
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setLead((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveChanges = async () => {
+    if (!lead || !lead.id) return;
+    setIsSaving(true);
+    try {
+      const { id, ...saveData } = lead;
+      await updateDoc(doc(db, "leads", lead.id), {
+        ...saveData,
+        updatedAt: new Date(),
+      });
+    } catch (e) {
+      console.error("Save failed", e);
+      alert("Failed to save changes");
+    } finally {
+      setIsSaving(false);
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (initialLead) setLead({ ...initialLead });
+    setIsEditing(false);
+  };
+
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNote.trim() || !lead || !user) return;
+    setIsPostingNote(true);
+    const noteEntry = {
+      id: Date.now().toString(),
+      text: newNote.trim(),
+      author: user.displayName || user.email || "Unknown",
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      await updateDoc(doc(db, "leads", lead.id), { history: arrayUnion(noteEntry) });
+      setLead((prev: any) => ({ ...prev, history: [...(prev.history || []), noteEntry] }));
+      setNewNote("");
+    } catch (e) {
+      console.error("Failed to add note", e);
+      alert("Failed to add note");
+    } finally {
+      setIsPostingNote(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (!lead?.id) return;
+    const url = `${window.location.origin}${window.location.pathname}?leadId=${lead.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   return (
     <AnimatePresence>
       {isOpen && lead && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -35,175 +145,338 @@ export function LeadDetailDrawer({ lead, isOpen, onClose, onUpdateStatus, onGene
             onClick={onClose}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           />
+
+          {/* Drawer */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 h-full w-[500px] max-w-[100vw] glass border-l border-white/10 z-50 flex flex-col shadow-2xl"
+            className="fixed right-0 top-0 h-full w-[520px] max-w-[100vw] bg-[#0d0d0d] border-l border-white/10 z-50 flex flex-col shadow-2xl"
           >
-            {/* Header */}
-            <div className="p-6 border-b border-white/10 flex items-start justify-between bg-white/5">
-              <div>
-                <h2 className="text-xl font-bold mb-1">{lead.name}</h2>
-                <div className="flex gap-2">
-                  <span className="text-xs px-2 py-1 rounded-md bg-white/10 text-muted-foreground">{lead.niche}</span>
-                  <select 
-                    className="text-xs px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 outline-none"
-                    value={lead.status}
-                    onChange={(e) => onUpdateStatus(lead.id, e.target.value)}
+            {/* ── Header ── */}
+            <div className="p-6 border-b border-white/10 flex flex-col gap-4 bg-white/[0.02]">
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <input
+                      className="text-2xl font-bold bg-white/5 border border-white/10 outline-none focus:border-emerald-500 w-full rounded-lg px-3 py-1.5 transition-colors"
+                      value={lead.name || ""}
+                      onChange={(e) => handleFieldChange("name", e.target.value)}
+                      placeholder="Company Name"
+                    />
+                  ) : (
+                    <h2 className="text-2xl font-bold truncate">{lead.name}</h2>
+                  )}
+
+                  <div className="flex gap-2 mt-2 flex-wrap items-center">
+                    {isEditing ? (
+                      <input
+                        className="text-xs px-2 py-1 rounded-md bg-white/10 text-muted-foreground border border-white/10 outline-none focus:border-emerald-500 w-32"
+                        value={lead.niche || ""}
+                        onChange={(e) => handleFieldChange("niche", e.target.value)}
+                        placeholder="Industry"
+                      />
+                    ) : (
+                      lead.niche && <span className="text-xs px-2 py-1 rounded-md bg-white/10 text-muted-foreground">{lead.niche}</span>
+                    )}
+
+                    {/* Status — always editable (instant save) */}
+                    <div className="relative">
+                      <select
+                        className="appearance-none text-xs px-2 pr-6 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 outline-none cursor-pointer hover:bg-emerald-500/30 transition-colors"
+                        value={lead.status}
+                        onChange={(e) => {
+                          handleFieldChange("status", e.target.value);
+                          onUpdateStatus(lead.id, e.target.value);
+                        }}
+                      >
+                        <option value="New">New</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Replied">Replied</option>
+                        <option value="Call Booked">Call Booked</option>
+                        <option value="Closed">Closed</option>
+                        <option value="Not Interested">Not Interested</option>
+                      </select>
+                      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {!isEditing && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors text-xs font-semibold border border-emerald-500/20"
+                    >
+                      Edit Profile
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleCopyLink}
+                    className={`p-1.5 rounded-lg transition-all ${copiedLink ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-white/10 text-muted-foreground"}`}
+                    title="Copy direct link to this lead"
                   >
-                    <option value="New">New</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Replied">Replied</option>
-                    <option value="Call Booked">Call Booked</option>
-                    <option value="Closed">Closed</option>
-                    <option value="Not Interested">Not Interested</option>
-                  </select>
+                    {copiedLink ? <Check size={18} /> : <Link size={18} />}
+                  </button>
+                  <button onClick={onClose} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-muted-foreground">
+                    <X size={18} />
+                  </button>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <X size={20} />
-              </button>
+
+              {/* Labels */}
+              <div className="flex flex-wrap gap-2 items-center relative" ref={dropdownRef}>
+                {(lead.labels || []).map((label: any) => (
+                  <span
+                    key={label.id}
+                    className="text-xs px-2 py-1 rounded-md font-medium border border-white/10 flex items-center gap-1"
+                    style={{ backgroundColor: `${label.color}20`, color: label.color }}
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+                    {label.name}
+                  </span>
+                ))}
+                <button
+                  onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                  className="text-xs px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-muted-foreground transition-colors flex items-center gap-1"
+                >
+                  <Plus size={11} /> Label
+                </button>
+
+                {showLabelDropdown && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-[#111] border border-white/10 rounded-xl p-2 z-[60] shadow-2xl">
+                    {globalLabels.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-2">No labels configured.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+                        {globalLabels.map(label => {
+                          const isApplied = (lead.labels || []).some((l: any) => l.id === label.id);
+                          return (
+                            <button
+                              key={label.id}
+                              onClick={() => toggleLeadLabel(label)}
+                              className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-left transition-colors"
+                            >
+                              <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${isApplied ? "border-emerald-500 bg-emerald-500" : "border-white/20"}`}>
+                                {isApplied && <CheckCircle2 size={9} className="text-white" />}
+                              </div>
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: label.color }} />
+                              <span className="text-sm">{label.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-white/10 px-6 mt-4 gap-6">
-              <button 
-                onClick={() => setActiveTab("details")}
-                className={`pb-3 border-b-2 transition-colors font-medium ${activeTab === "details" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
-              >
-                Lead Details
-              </button>
-              <button 
-                onClick={() => setActiveTab("outreach")}
-                className={`pb-3 border-b-2 transition-colors font-medium flex items-center gap-2 ${activeTab === "outreach" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
-              >
-                <MessageSquare size={16} />
-                Outreach Gen
-              </button>
-            </div>
+            {/* ── Content ── */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-28">
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
-              {activeTab === "details" ? (
-                <div className="space-y-6">
-                  {/* Quick Actions */}
-                  <div className="grid grid-cols-2 gap-3">
+              {/* Activity Log */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History size={14} className="text-emerald-500" />
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400/80">Activity Log</h3>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground bg-white/5 px-2 py-0.5 rounded">
+                    {(lead.history?.length || 0)} interactions
+                  </span>
+                </div>
+
+                {/* Post note */}
+                <form onSubmit={handleAddNote} className="relative">
+                  <textarea
+                    className="w-full h-20 bg-white/5 border border-white/10 rounded-xl p-3 pr-12 text-sm outline-none focus:border-emerald-500 transition-all resize-none placeholder:text-muted-foreground/30"
+                    placeholder="Log a call, note a follow-up..."
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newNote.trim() || isPostingNote}
+                    className="absolute bottom-3 right-3 p-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-30 text-white rounded-lg transition-all active:scale-90"
+                  >
+                    {isPostingNote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  </button>
+                </form>
+
+                {/* Timeline */}
+                <div className="space-y-3 relative before:absolute before:left-[10px] before:top-1 before:bottom-1 before:w-px before:bg-white/8">
+                  {(lead.history?.length || 0) === 0 ? (
+                    <p className="pl-7 text-sm text-muted-foreground italic">No activity yet.</p>
+                  ) : (
+                    [...(lead.history || [])].reverse().map((item: any) => (
+                      <div key={item.id} className="relative pl-7">
+                        <div className="absolute left-0 top-1.5 w-5 h-5 rounded-full bg-[#111] border border-white/10 flex items-center justify-center">
+                          <MessageSquare size={9} className="text-emerald-500" />
+                        </div>
+                        <div className="bg-white/[0.03] border border-white/8 rounded-xl p-3 space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-emerald-400/80">{item.author}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-white/80 leading-relaxed">{item.text}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Contact Info */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Info</h3>
+                  <div className="flex gap-2">
                     {lead.phone && (
-                      <a href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 transition-colors">
-                        <Phone size={16} className="text-emerald-400" />
-                        <span className="text-sm font-medium">WhatsApp</span>
+                      <a href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer"
+                        className="p-1.5 hover:bg-white/10 rounded-lg text-emerald-400 transition-colors">
+                        <Phone size={13} />
                       </a>
                     )}
                     {lead.website && (
-                      <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl py-3 transition-colors">
-                        <Globe size={16} className="text-blue-400" />
-                        <span className="text-sm font-medium">Website</span>
+                      <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer"
+                        className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors">
+                        <Globe size={13} />
                       </a>
                     )}
                   </div>
-
-                  {/* Info Blocks */}
-                  <div className="space-y-4 bg-white/5 border border-white/10 rounded-xl p-4">
-                    <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Contact Info</h3>
-                    
-                    {lead.phone && (
-                      <div className="flex items-center gap-3">
-                        <Phone size={16} className="text-muted-foreground" />
-                        <span className="text-sm">{lead.phone}</span>
-                      </div>
-                    )}
-                    {lead.email && (
-                      <div className="flex items-center gap-3">
-                        <Mail size={16} className="text-muted-foreground" />
-                        <span className="text-sm">{lead.email}</span>
-                      </div>
-                    )}
-                    {lead.address && (
-                      <div className="flex items-start gap-3">
-                        <MapPin size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-                        <span className="text-sm">{lead.address} <br/> {lead.city}, {lead.country}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4 bg-white/5 border border-white/10 rounded-xl p-4">
-                    <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Company Details</h3>
-                    
-                    {lead.decisionMaker && (
-                      <div className="flex items-center gap-3">
-                        <Users size={16} className="text-muted-foreground" />
-                        <span className="text-sm"><span className="text-muted-foreground">Contact:</span> {lead.decisionMaker} ({lead.decisionMakerTitle || "Owner"})</span>
-                      </div>
-                    )}
-                    {lead.employeeCount && (
-                      <div className="flex items-center gap-3">
-                        <Building size={16} className="text-muted-foreground" />
-                        <span className="text-sm"><span className="text-muted-foreground">Size:</span> {lead.employeeCount}</span>
-                      </div>
-                    )}
-                    {lead.rating && (
-                      <div className="flex items-center gap-3">
-                        <Star size={16} className="text-emerald-400" />
-                        <span className="text-sm">{lead.rating} <span className="text-muted-foreground">({lead.reviewCount || 0} reviews)</span></span>
-                      </div>
-                    )}
-                  </div>
-
-                  {lead.pain && (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-                      <h3 className="text-xs uppercase tracking-wider text-red-400 font-semibold mb-2">Identified Pain Point</h3>
-                      <p className="text-sm text-red-100">{lead.pain}</p>
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <div className="space-y-6 h-full flex flex-col">
-                  {!lead.en_message ? (
-                    <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                      <h3 className="text-sm font-medium mb-3">Generate Outreach</h3>
-                      <input 
-                        type="text" 
-                        value={offer} 
-                        onChange={(e) => setOffer(e.target.value)} 
-                        placeholder="What are you pitching? (e.g. AI Voice Agent)"
-                        className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-sm mb-4 outline-none focus:border-emerald-500"
+
+                {[
+                  { icon: <Phone size={14} />, field: "phone", placeholder: "Phone number" },
+                  { icon: <Mail size={14} />, field: "email", placeholder: "Email address" },
+                  { icon: <Globe size={14} />, field: "website", placeholder: "Website URL" },
+                ].map(({ icon, field, placeholder }) => (
+                  <div key={field} className="flex items-center gap-3">
+                    <span className="text-muted-foreground shrink-0">{icon}</span>
+                    {isEditing ? (
+                      <input
+                        className="flex-1 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                        value={lead[field] || ""}
+                        onChange={(e) => handleFieldChange(field, e.target.value)}
+                        placeholder={placeholder}
                       />
-                      <button 
-                        onClick={handleGenerate}
-                        disabled={isGenerating || !offer}
-                        className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-                      >
-                        {isGenerating ? "Generating with Groq..." : "Generate AI Messages"}
-                      </button>
+                    ) : (
+                      <span className="text-sm text-white/80">{lead[field] || "—"}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Company Details */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Company Details</h3>
+
+                {/* Decision maker */}
+                <div className="flex items-center gap-3">
+                  <Users size={14} className="text-muted-foreground shrink-0" />
+                  {isEditing ? (
+                    <div className="flex gap-2 flex-1">
+                      <input
+                        className="flex-1 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                        value={lead.decisionMaker || ""}
+                        onChange={(e) => handleFieldChange("decisionMaker", e.target.value)}
+                        placeholder="Contact name"
+                      />
+                      <input
+                        className="w-32 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                        value={lead.decisionMakerTitle || ""}
+                        onChange={(e) => handleFieldChange("decisionMakerTitle", e.target.value)}
+                        placeholder="Title"
+                      />
                     </div>
                   ) : (
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">English Message</h3>
-                          <button className="text-xs text-emerald-400 hover:underline" onClick={() => navigator.clipboard.writeText(lead.en_message)}>Copy</button>
-                        </div>
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm whitespace-pre-wrap leading-relaxed">
-                          {lead.en_message}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2" dir="auto">
-                        <div className="flex justify-between items-center" dir="ltr">
-                          <h3 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Arabic Message</h3>
-                          <button className="text-xs text-emerald-400 hover:underline" onClick={() => navigator.clipboard.writeText(lead.ar_message)}>Copy</button>
-                        </div>
-                        <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm whitespace-pre-wrap leading-relaxed font-arabic text-right">
-                          {lead.ar_message}
-                        </div>
-                      </div>
-                    </div>
+                    <span className="text-sm text-white/80">
+                      {lead.decisionMaker || "—"}
+                      {lead.decisionMakerTitle && <span className="text-muted-foreground italic ml-1">({lead.decisionMakerTitle})</span>}
+                    </span>
                   )}
                 </div>
-              )}
+
+                {/* Address */}
+                <div className="flex items-start gap-3">
+                  <MapPin size={14} className="text-muted-foreground shrink-0 mt-1" />
+                  {isEditing ? (
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      <input
+                        className="bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                        value={lead.address || ""}
+                        onChange={(e) => handleFieldChange("address", e.target.value)}
+                        placeholder="Street address"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          className="flex-1 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                          value={lead.city || ""}
+                          onChange={(e) => handleFieldChange("city", e.target.value)}
+                          placeholder="City"
+                        />
+                        <input
+                          className="w-28 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"
+                          value={lead.country || ""}
+                          onChange={(e) => handleFieldChange("country", e.target.value)}
+                          placeholder="Country"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-white/80">
+                      {[lead.address, lead.city, lead.country].filter(Boolean).join(", ") || "—"}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Pain Point */}
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-2">Identified Pain Point</h3>
+                {isEditing ? (
+                  <textarea
+                    className="w-full bg-white/5 border border-white/10 outline-none focus:border-red-500 text-sm text-red-100 p-2 rounded-lg resize-none h-20 transition-colors"
+                    value={lead.pain || ""}
+                    onChange={(e) => handleFieldChange("pain", e.target.value)}
+                    placeholder="Describe the pain point..."
+                  />
+                ) : (
+                  <p className="text-sm text-red-100/80 leading-relaxed">{lead.pain || "No pain points identified."}</p>
+                )}
+              </div>
             </div>
+
+            {/* ── Save Bar (only in edit mode) ── */}
+            <AnimatePresence>
+              {isEditing && (
+                <motion.div
+                  initial={{ y: 80 }}
+                  animate={{ y: 0 }}
+                  exit={{ y: 80 }}
+                  className="absolute bottom-0 left-0 w-full p-5 bg-black/90 backdrop-blur-md border-t border-white/10 flex gap-3"
+                >
+                  <button
+                    onClick={handleSaveChanges}
+                    disabled={isSaving}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="px-5 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 rounded-xl transition-colors border border-white/10"
+                  >
+                    Cancel
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </>
       )}

@@ -15,8 +15,7 @@ export default function LoginPage() {
       router.push("/");
     }
   }, [user, loading, router]);
-
-  if (loading) return null; // Or a subtle loading spinner
+  const isAuthInitializing = loading;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-black to-black">
@@ -34,11 +33,14 @@ export default function LoginPage() {
         
         <h1 className="text-2xl font-semibold mb-2">Welcome Back</h1>
         <p className="text-muted-foreground mb-8 text-sm">
-          Sign in to access your CRM and Lead Engine.
+          {isAuthInitializing
+            ? "Checking your session..."
+            : "Sign in to access your CRM and Lead Engine."}
         </p>
 
         <button
           onClick={signInWithGoogle}
+          disabled={isAuthInitializing}
           className="w-full flex items-center justify-center gap-3 bg-white text-black hover:bg-gray-100 transition-colors py-3 px-4 rounded-xl font-medium"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">

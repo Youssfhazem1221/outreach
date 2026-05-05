@@ -55,7 +55,12 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity" />
       
       <div className="flex justify-between items-start mb-2">
-        <h4 className="font-medium text-sm text-white line-clamp-1 pr-2">{lead.name}</h4>
+        <div className="flex flex-col min-w-0">
+          <h4 className="font-medium text-sm text-white line-clamp-1 pr-2">{lead.name}</h4>
+          {lead.source === 'groq_simulated' && (
+            <span className="text-[8px] text-amber-500 font-bold uppercase tracking-tighter">Simulated</span>
+          )}
+        </div>
         {lead.rating && (
           <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-medium shrink-0">
             ★ {lead.rating}
@@ -63,9 +68,24 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground line-clamp-1 mb-3">
+      <p className="text-xs text-muted-foreground line-clamp-1 mb-2">
         {lead.niche} • {lead.city}
       </p>
+
+      {lead.labels && lead.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {lead.labels.map((label: any) => (
+            <span 
+              key={label.id} 
+              className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 flex items-center gap-1"
+              style={{ backgroundColor: `${label.color}15`, color: label.color }}
+            >
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+              {label.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-auto">
         <div className="flex gap-2">

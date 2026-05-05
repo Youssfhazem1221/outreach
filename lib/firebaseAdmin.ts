@@ -13,15 +13,25 @@ function initializeAdminApp() {
     return admin.app();
   }
 
-  // Only initialize if we have the credentials, otherwise we might be in a build step where they aren't provided
-  if (projectId && clientEmail && privateKey) {
-    return admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
-    });
+  // Check if we have valid credentials and they aren't just placeholder strings
+  const isConfigured = 
+    projectId && projectId !== "undefined" &&
+    clientEmail && clientEmail !== "undefined" &&
+    privateKey && privateKey !== "undefined";
+
+  if (isConfigured) {
+    try {
+      return admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: projectId as string,
+          clientEmail: clientEmail as string,
+          privateKey: privateKey as string,
+        }),
+      });
+    } catch (error) {
+      console.error("Firebase Admin initialization error:", error);
+      return null;
+    }
   }
 
   return null;

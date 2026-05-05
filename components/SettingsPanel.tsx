@@ -1,122 +1,410 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
-import { ShieldAlert, Save, Users } from "lucide-react";
-import { auth } from "@/lib/firebaseClient";
+import { useState, useEffect } from "react";
+import { ShieldAlert, Users, Key, Tags, Save, Plus, Trash2, Loader2, ChevronDown } from "lucide-react";
+import { auth, db } from "@/lib/firebaseClient";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+type UserRecord = {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  creationTime?: string;
+  lastSignInTime?: string;
+  role: string;
+};
+
+type LabelRecord = { id: string; name: string; color: string };
 
 export function SettingsPanel() {
   const { role } = useAuth();
-  const [targetUid, setTargetUid] = useState("");
-  const [newRole, setNewRole] = useState("admin");
-  const [isPromoting, setIsPromoting] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [activeTab, setActiveTab] = useState<"personal" | "users" | "apis" | "labels">("personal");
 
-  // Only admins can see this panel (double checked by firestore rules and API)
-  if (role !== "admin") {
-    return (
-      <div className="p-8 h-full flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <ShieldAlert className="mx-auto h-12 w-12 text-red-500 opacity-50" />
-          <h2 className="text-xl font-semibold">Access Denied</h2>
-          <p className="text-muted-foreground text-sm">You must be an administrator to view this page.</p>
-        </div>
-      </div>
-    );
-  }
+  // User Management State
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
-  const handlePromote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetUid) return;
-    setIsPromoting(true);
-    setMsg("");
+  // API State
+  const [tavilyKey, setTavilyKey] = useState("");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [groqKey, setGroqKey] = useState(""); // Added Groq
+  const [isSavingApi, setIsSavingApi] = useState(false);
+  
+  // Personal Settings State
+  const [personalTavily, setPersonalTavily] = useState("");
+  const [personalGroq, setPersonalGroq] = useState("");
+  const [isSavingPersonal, setIsSavingPersonal] = useState(false);
 
+  // Labels State
+  const [labels, setLabels] = useState<LabelRecord[]>([]);
+  const [newLabelName, setNewLabelName] = useState("");
+  const [newLabelColor, setNewLabelColor] = useState("#10b981");
+
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
     try {
       const idToken = await auth.currentUser?.getIdToken();
-      
-      const res = await fetch("/api/set-role", {
+      const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUid, newRole, idToken }),
+        body: JSON.stringify({ idToken })
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      
-      setMsg(`Success: ${data.message}`);
-      setTargetUid("");
-    } catch (err: any) {
-      setMsg(`Error: ${err.message}`);
+      if (data.users) setUsers(data.users);
+    } catch {
+      console.error("Failed to load users");
     } finally {
-      setIsPromoting(false);
+      setIsLoadingUsers(false);
     }
   };
 
+  const fetchSettings = async () => {
+    try {
+      // Global Settings (Admin Only)
+      if (role === "admin") {
+        const apiDoc = await getDoc(doc(db, "settings", "api_keys"));
+        if (apiDoc.exists()) {
+          setTavilyKey(apiDoc.data().tavily || "");
+          setGeminiKey(apiDoc.data().gemini || "");
+          setGroqKey(apiDoc.data().groq || "");
+        }
+
+        const labelDoc = await getDoc(doc(db, "settings", "labels"));
+        if (labelDoc.exists()) {
+          setLabels(labelDoc.data().items || []);
+        }
+      }
+
+      // Personal Settings (All Users)
+      if (auth.currentUser) {
+        const personalDoc = await getDoc(doc(db, "users", auth.currentUser.uid, "settings", "api_keys"));
+        if (personalDoc.exists()) {
+          setPersonalTavily(personalDoc.data().tavily || "");
+          setPersonalGroq(personalDoc.data().groq || "");
+        }
+      }
+    } catch {
+      console.error("Failed to load settings");
+    }
+  };
+
+  // Fetch Initial Data
+  useEffect(() => {
+    if (role !== "admin") return;
+    void (async () => {
+      await Promise.all([fetchUsers(), fetchSettings()]);
+    })();
+  }, [role]);
+
+  const handleRoleChange = async (uid: string, newRole: string) => {
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      await fetch("/api/set-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUid: uid, newRole, idToken }),
+      });
+      // Optimistic update
+      setUsers(users.map(u => u.uid === uid ? { ...u, role: newRole } : u));
+    } catch {
+      alert("Failed to change role");
+    }
+  };
+
+  const handleSaveApis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingApi(true);
+    try {
+      await setDoc(doc(db, "settings", "api_keys"), {
+        tavily: tavilyKey,
+        gemini: geminiKey,
+        groq: groqKey
+      }, { merge: true });
+      alert("System API keys saved successfully");
+    } catch {
+      alert("Failed to save system API keys");
+    } finally {
+      setIsSavingApi(false);
+    }
+  };
+
+  const handleSavePersonalApis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth.currentUser) return;
+    setIsSavingPersonal(true);
+    try {
+      await setDoc(doc(db, "users", auth.currentUser.uid, "settings", "api_keys"), {
+        tavily: personalTavily,
+        groq: personalGroq
+      }, { merge: true });
+      alert("Personal API keys saved successfully");
+    } catch {
+      alert("Failed to save personal keys");
+    } finally {
+      setIsSavingPersonal(false);
+    }
+  };
+
+  const handleAddLabel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLabelName.trim()) return;
+    
+    const newLabel = {
+      id: Date.now().toString(),
+      name: newLabelName.trim(),
+      color: newLabelColor
+    };
+    
+    const updatedLabels = [...labels, newLabel];
+    setLabels(updatedLabels);
+    setNewLabelName("");
+    
+    await setDoc(doc(db, "settings", "labels"), { items: updatedLabels });
+  };
+
+  const handleDeleteLabel = async (id: string) => {
+    const updatedLabels = labels.filter(l => l.id !== id);
+    setLabels(updatedLabels);
+    await setDoc(doc(db, "settings", "labels"), { items: updatedLabels });
+  };
+
+  // Removed global access denial - users can access personal tab
+  const isAdmin = role === "admin";
+
   return (
     <div className="p-8 h-full overflow-y-auto">
-      <div className="max-w-3xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Admin Settings</h1>
-          <p className="text-muted-foreground">Manage system configuration and user roles.</p>
+          <h1 className="text-3xl font-bold mb-2">System Settings</h1>
+          <p className="text-muted-foreground">Manage users, API fallbacks, and global taxonomy.</p>
         </div>
 
-        {/* User Role Management */}
-        <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-            <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
-              <Users size={20} />
+        {/* Tab Navigation */}
+        <div className="flex border-b border-white/10 gap-6">
+          <button 
+            onClick={() => setActiveTab("personal")}
+            className={`pb-3 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === "personal" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
+          >
+            <Key size={16} /> Personal API Keys
+          </button>
+          {isAdmin && (
+            <>
+              <button 
+                onClick={() => setActiveTab("users")}
+                className={`pb-3 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === "users" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
+              >
+                <Users size={16} /> User Management
+              </button>
+              <button 
+                onClick={() => setActiveTab("apis")}
+                className={`pb-3 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === "apis" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
+              >
+                <ShieldAlert size={16} /> System Backup APIs
+              </button>
+              <button 
+                onClick={() => setActiveTab("labels")}
+                className={`pb-3 font-medium flex items-center gap-2 border-b-2 transition-colors ${activeTab === "labels" ? "border-emerald-500 text-emerald-400" : "border-transparent text-muted-foreground hover:text-white"}`}
+              >
+                <Tags size={16} /> Custom Labels
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Personal API Tab */}
+        {activeTab === "personal" && (
+          <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-1">Your Personal Keys</h3>
+              <p className="text-sm text-muted-foreground">
+                These keys are private to you and will be used for your searches and generations.
+              </p>
             </div>
-            <h2 className="text-lg font-semibold">Role Management</h2>
-          </div>
-          
-          <form onSubmit={handlePromote} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSavePersonalApis} className="space-y-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">User Firebase UID</label>
+                <label className="text-sm font-medium text-muted-foreground">Personal Tavily API Key</label>
                 <input 
-                  type="text" 
-                  value={targetUid} 
-                  onChange={(e) => setTargetUid(e.target.value)}
-                  placeholder="e.g. abc123xyz..." 
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-blue-500"
-                  required
+                  type="password" 
+                  value={personalTavily} 
+                  onChange={(e) => setPersonalTavily(e.target.value)}
+                  placeholder="tvly-..." 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Assign Role</label>
-                <select 
-                  value={newRole} 
-                  onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-blue-500 appearance-none"
-                >
-                  <option value="admin">Administrator</option>
-                  <option value="user">Standard User</option>
-                </select>
+                <label className="text-sm font-medium text-muted-foreground">Personal Groq API Key</label>
+                <input 
+                  type="password" 
+                  value={personalGroq} 
+                  onChange={(e) => setPersonalGroq(e.target.value)}
+                  placeholder="gsk_..." 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
+                />
               </div>
-            </div>
-            <button 
-              type="submit" 
-              disabled={isPromoting}
-              className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-medium py-2 px-6 rounded-xl transition-colors"
-            >
-              {isPromoting ? "Updating..." : "Update Role"}
-            </button>
-            {msg && <p className={`text-sm ${msg.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>{msg}</p>}
-          </form>
-        </div>
-
-        {/* System Config Placeholder */}
-        <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
-              <Save size={20} />
-            </div>
-            <h2 className="text-lg font-semibold">Prompt Templates (Coming Soon)</h2>
+              <button 
+                type="submit" 
+                disabled={isSavingPersonal}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-medium py-2.5 px-6 rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <Save size={16} /> {isSavingPersonal ? "Saving..." : "Save My Keys"}
+              </button>
+            </form>
           </div>
-          <p className="text-sm text-muted-foreground">
-            In a future update, you will be able to edit the Gemini and Groq system prompts directly from this panel and save them to Firestore.
-          </p>
-        </div>
+        )}
+
+        {/* User Management Tab */}
+        {activeTab === "users" && (
+          <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-black/40 text-muted-foreground uppercase text-xs">
+                <tr>
+                  <th className="px-6 py-4">User</th>
+                  <th className="px-6 py-4">Signed Up</th>
+                  <th className="px-6 py-4">Role</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {isLoadingUsers ? (
+                  <tr><td colSpan={3} className="px-6 py-8 text-center"><Loader2 className="animate-spin mx-auto text-emerald-500" /></td></tr>
+                ) : (
+                  users.map(u => (
+                    <tr key={u.uid} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-medium">{u.displayName || "Unknown User"}</div>
+                        <div className="text-xs text-muted-foreground">{u.email}</div>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {u.creationTime ? new Date(u.creationTime).toLocaleDateString() : "—"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="relative group w-48">
+                          <select 
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.uid, e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 pr-8 py-1.5 outline-none focus:border-emerald-500 appearance-none cursor-pointer hover:bg-white/5 transition-all"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="user">User (Full CRM Access)</option>
+                            <option value="viewer">Viewer (Read-only)</option>
+                          </select>
+                          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* API Tab */}
+        {activeTab === "apis" && (
+          <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
+            <p className="text-sm text-muted-foreground mb-4">
+              If your primary API keys in Vercel hit their limits, the system will automatically fall back to these keys.
+            </p>
+            <form onSubmit={handleSaveApis} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Fallback Tavily API Key</label>
+                <input 
+                  type="password" 
+                  value={tavilyKey} 
+                  onChange={(e) => setTavilyKey(e.target.value)}
+                  placeholder="tvly-..." 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Fallback Groq API Key</label>
+                <input 
+                  type="password" 
+                  value={groqKey} 
+                  onChange={(e) => setGroqKey(e.target.value)}
+                  placeholder="gsk_..." 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={isSavingApi}
+                className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-medium py-2.5 px-6 rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <Save size={16} /> {isSavingApi ? "Saving..." : "Save Fallback Keys"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Labels Tab */}
+        {activeTab === "labels" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="glass p-6 rounded-2xl border border-white/10 h-fit">
+              <h3 className="font-semibold mb-4">Create New Label</h3>
+              <form onSubmit={handleAddLabel} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Label Name</label>
+                  <input 
+                    type="text" 
+                    value={newLabelName} 
+                    onChange={(e) => setNewLabelName(e.target.value)}
+                    placeholder="e.g. High Priority" 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">Color Hex</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="color" 
+                      value={newLabelColor} 
+                      onChange={(e) => setNewLabelColor(e.target.value)}
+                      className="w-10 h-10 rounded cursor-pointer bg-black/40 border border-white/10"
+                    />
+                    <input 
+                      type="text" 
+                      value={newLabelColor} 
+                      onChange={(e) => setNewLabelColor(e.target.value)}
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500 font-mono text-sm uppercase"
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="submit" 
+                  className="w-full bg-white/10 hover:bg-white/20 text-white font-medium py-2 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Plus size={16} /> Add Label
+                </button>
+              </form>
+            </div>
+
+            <div className="glass p-6 rounded-2xl border border-white/10">
+              <h3 className="font-semibold mb-4">Active Labels</h3>
+              {labels.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No custom labels created yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {labels.map(label => (
+                    <div key={label.id} className="flex items-center justify-between bg-black/40 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-4 rounded-full" style={{ backgroundColor: label.color }} />
+                        <span className="font-medium text-sm">{label.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteLabel(label.id)}
+                        className="text-muted-foreground hover:text-red-400 transition-colors p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
