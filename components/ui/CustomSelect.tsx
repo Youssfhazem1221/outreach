@@ -42,7 +42,7 @@ export function CustomSelect({ value, onChange, options, placeholder, className,
           e.stopPropagation();
           setIsOpen(!isOpen);
         }}
-        className="w-full flex items-center justify-between gap-2 bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white hover:bg-white/5 transition-all text-left outline-none focus:border-emerald-500/50"
+        className="w-full flex items-center justify-between gap-2 bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white hover:bg-white/5 transition-all text-left outline-none focus:outline-none focus:ring-0 focus:border-emerald-500/50"
       >
         <div className="flex items-center gap-2 truncate">
           {icon && <span className="text-muted-foreground">{icon}</span>}
@@ -54,13 +54,13 @@ export function CustomSelect({ value, onChange, options, placeholder, className,
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.1 }}
-            className="absolute z-[100] mt-2 w-full min-w-[200px] bg-[#0A0A0A] border border-white/10 rounded-xl shadow-2xl shadow-black overflow-hidden backdrop-blur-xl"
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute z-[100] mt-2 w-full min-w-[220px] bg-[#0A0A0A]/95 border border-white/10 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden backdrop-blur-2xl"
           >
-            <div className="max-h-60 overflow-auto p-1.5 custom-scrollbar">
+            <div className="max-h-64 overflow-auto p-1.5 custom-scrollbar">
               {options.map((option) => (
                 <button
                   key={option.value}
@@ -69,14 +69,14 @@ export function CustomSelect({ value, onChange, options, placeholder, className,
                     onChange(option.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] rounded-lg transition-all text-left group ${
                     value === option.value 
-                      ? "bg-emerald-500/10 text-emerald-400" 
-                      : "text-white/70 hover:bg-white/5 hover:text-white"
+                      ? "bg-emerald-500/10 text-emerald-400 font-medium" 
+                      : "text-white/60 hover:bg-white/5 hover:text-white"
                   }`}
                 >
-                  {option.icon && <span>{option.icon}</span>}
-                  {option.label}
+                  {option.icon && <span className="group-hover:scale-110 transition-transform">{option.icon}</span>}
+                  <span className="truncate">{option.label}</span>
                 </button>
               ))}
             </div>

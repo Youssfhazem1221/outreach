@@ -39,7 +39,9 @@ export function LeadsTable({
   const [isNicheModalOpen, setIsNicheModalOpen] = useState(false);
   const [newNicheValue, setNewNicheValue] = useState("");
 
-  const uniqueNiches = Array.from(new Set(leads.map(l => l.niche).filter(Boolean))).sort();
+  const uniqueNiches = Array.from(new Set(leads.map(l => l.niche?.toLowerCase()).filter(Boolean)))
+    .map(n => leads.find(l => l.niche?.toLowerCase() === n)?.niche)
+    .sort();
   const uniqueOwners = Array.from(new Set(leads.map(l => l.userEmail).filter(Boolean))).sort();
   
   const filteredLeads = leads.filter(lead => {
@@ -47,7 +49,7 @@ export function LeadsTable({
                           lead.niche?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           lead.phone?.includes(searchTerm);
     const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
-    const matchesNiche = nicheFilter === "All" || lead.niche === nicheFilter;
+    const matchesNiche = nicheFilter === "All" || lead.niche?.toLowerCase() === nicheFilter.toLowerCase();
     const matchesLabel = labelFilter === "All" || (lead.labels && lead.labels.some((l: any) => l.id === labelFilter));
     const matchesOwner = ownerFilter === "All" || lead.userEmail === ownerFilter;
     
@@ -116,16 +118,10 @@ export function LeadsTable({
     document.body.removeChild(link);
   };
 
-  const bulkActionOptions = [
-    { value: "status", label: "Change Status", icon: <Edit3 size={14} /> },
-    { value: "niche", label: "Change Niche", icon: <Edit3 size={14} /> },
-    { value: "label", label: "Add Label", icon: <Tag size={14} /> },
-    { value: "delete", label: "Delete Leads", icon: <Trash2 size={14} /> },
-  ];
-
   return (
-    <div className="p-6 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 h-full flex flex-col items-center">
+      <div className="w-full max-w-7xl flex flex-col h-full mx-auto">
+        <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-1">All Leads</h1>
           <p className="text-muted-foreground text-xs">Manage and export your complete lead database.</p>
@@ -281,7 +277,7 @@ export function LeadsTable({
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden border border-white/10 rounded-xl bg-white/5">
+      <div className="flex-1 overflow-hidden border border-white/10 rounded-xl bg-white/5 w-full">
         <div className="overflow-auto h-full relative">
           <table className="w-full text-xs text-left">
             <thead className="text-[10px] uppercase bg-black/40 text-muted-foreground sticky top-0 z-10 backdrop-blur-md">
@@ -407,7 +403,7 @@ export function LeadsTable({
         </div>
       </div>
       
-      <div className="mt-4 text-sm text-muted-foreground flex justify-between items-center">
+      <div className="w-full max-w-6xl mt-4 text-[10px] text-muted-foreground flex justify-between items-center">
         <span>Showing {filteredLeads.length} leads</span>
         {selectedIds.length > 0 && (
           <span className="text-emerald-400 font-medium">{selectedIds.length} leads selected</span>
