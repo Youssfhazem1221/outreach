@@ -115,13 +115,26 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
     };
     try {
       await updateDoc(doc(db, "leads", lead.id), { history: arrayUnion(noteEntry) });
-      setLead((prev: any) => ({ ...prev, history: [...(prev.history || []), noteEntry] }));
+      // Removed local state update to prevent "adds twice" bug (let Firestore listener handle it)
       setNewNote("");
     } catch (e) {
       console.error("Failed to add note", e);
       alert("Failed to add note");
     } finally {
       setIsPostingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!lead || !confirm("Delete this note?")) return;
+    try {
+      const updatedHistory = lead.history.filter((n: any) => n.id !== noteId);
+      await updateDoc(doc(db, "leads", lead.id), { history: updatedHistory });
+      // Local update is safe here for deletion to feel snappy, 
+      // but the listener will also sync it.
+      setLead((prev: any) => ({ ...prev, history: updatedHistory }));
+    } catch (e) {
+      console.error("Failed to delete note", e);
     }
   };
 
@@ -318,9 +331,17 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                         <div className="bg-white/[0.03] border border-white/8 rounded-xl p-3 space-y-1">
                           <div className="flex justify-between items-center">
                             <span className="text-xs font-bold text-emerald-400/80">{item.author}</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              <button 
+                                onClick={() => handleDeleteNote(item.id)}
+                                className="text-muted-foreground hover:text-red-400 transition-colors"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
                           </div>
                           <p className="text-sm text-white/80 leading-relaxed">{item.text}</p>
                         </div>

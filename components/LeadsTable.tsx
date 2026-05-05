@@ -28,14 +28,24 @@ export function LeadsTable({
 }: LeadsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [nicheFilter, setNicheFilter] = useState("All");
+  const [labelFilter, setLabelFilter] = useState("All");
+  const [ownerFilter, setOwnerFilter] = useState("All");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const uniqueNiches = Array.from(new Set(leads.map(l => l.niche).filter(Boolean))).sort();
+  const uniqueOwners = Array.from(new Set(leads.map(l => l.userEmail).filter(Boolean))).sort();
   
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           lead.niche?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           lead.phone?.includes(searchTerm);
     const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesNiche = nicheFilter === "All" || lead.niche === nicheFilter;
+    const matchesLabel = labelFilter === "All" || (lead.labels && lead.labels.some((l: any) => l.id === labelFilter));
+    const matchesOwner = ownerFilter === "All" || lead.userEmail === ownerFilter;
+    
+    return matchesSearch && matchesStatus && matchesNiche && matchesLabel && matchesOwner;
   });
 
   const toggleSelectAll = () => {
@@ -125,22 +135,69 @@ export function LeadsTable({
           />
         </div>
         
-        <div className="relative w-48 group">
-          <Filter className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
-          >
-            <option value="All">All Statuses</option>
-            <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
-            <option value="Replied">Replied</option>
-            <option value="Call Booked">Call Booked</option>
-            <option value="Closed">Closed</option>
-            <option value="Not Interested">Not Interested</option>
-          </select>
-          <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
+        <div className="flex flex-wrap gap-3">
+          <div className="relative w-40 group">
+            <Filter className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
+            >
+              <option value="All">All Statuses</option>
+              <option value="New">New</option>
+              <option value="Contacted">Contacted</option>
+              <option value="Replied">Replied</option>
+              <option value="Call Booked">Call Booked</option>
+              <option value="Closed">Closed</option>
+              <option value="Not Interested">Not Interested</option>
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
+          </div>
+
+          <div className="relative w-40 group">
+            <select 
+              value={nicheFilter}
+              onChange={(e) => setNicheFilter(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
+            >
+              <option value="All">All Niches</option>
+              {uniqueNiches.map(n => (
+                <option key={n as string} value={n as string}>{n as string}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
+          </div>
+
+          <div className="relative w-40 group">
+            <Tag className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
+            <select 
+              value={labelFilter}
+              onChange={(e) => setLabelFilter(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
+            >
+              <option value="All">All Labels</option>
+              {customLabels.map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
+          </div>
+
+          {isAdmin && (
+            <div className="relative w-48 group">
+              <select 
+                value={ownerFilter}
+                onChange={(e) => setOwnerFilter(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
+              >
+                <option value="All">All Owners</option>
+                {uniqueOwners.map(o => (
+                  <option key={o as string} value={o as string}>{o as string}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
+            </div>
+          )}
         </div>
       </div>
 
