@@ -520,7 +520,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
               )}
             </AnimatePresence>
           </motion.div>
-        </motion.div>
+        </>
       )}
 
       <CustomModal 

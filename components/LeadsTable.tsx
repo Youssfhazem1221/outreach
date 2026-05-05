@@ -482,6 +482,7 @@ export function LeadsTable({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
