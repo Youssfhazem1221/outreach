@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Mail, Phone, MapPin, Globe, History, Send, MessageSquare, Plus, Trash2, Calendar, Target, User, Copy, Check, ChevronDown } from "lucide-react";
+import { X, ExternalLink, Mail, Phone, MapPin, Globe, History, Send, MessageSquare, Plus, Trash2, Calendar, Target, User, Users, Copy, Check, ChevronDown, Link, Loader2, Save, CheckCircle2 } from "lucide-react";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
 import { useAuth } from "@/contexts/AuthContext";
