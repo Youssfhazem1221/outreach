@@ -2,46 +2,132 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { motion } from "framer-motion";
-import { LogIn } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { LogIn, Mail, Lock, UserPlus, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
-  const { user, signInWithGoogle, loading } = useAuth();
+  const { user, signInWithGoogle, signInWithEmail, signUpWithEmail, loading } = useAuth();
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (user && !loading) {
       router.push("/");
     }
   }, [user, loading, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      if (isSignUp) {
+        await signUpWithEmail(email, password);
+      } else {
+        await signInWithEmail(email, password);
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred during authentication.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const isAuthInitializing = loading;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-black to-black">
+    <div className="min-h-screen flex items-center justify-center bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-black to-black p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="glass p-8 rounded-2xl w-full max-w-md text-center"
+        className="glass p-8 rounded-2xl w-full max-w-md"
       >
-        <div className="flex justify-center mb-6">
-          <div className="h-16 w-16 rounded-full glass flex items-center justify-center text-emerald-500">
-            <LogIn size={32} />
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+            <div className="h-16 w-16 rounded-full glass flex items-center justify-center text-emerald-500">
+              {isSignUp ? <UserPlus size={32} /> : <LogIn size={32} />}
+            </div>
+          </div>
+          <h1 className="text-2xl font-semibold mb-2">
+            {isSignUp ? "Create Account" : "Welcome Back"}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {isAuthInitializing
+              ? "Checking your session..."
+              : isSignUp 
+                ? "Join the Lead Engine and start growing." 
+                : "Sign in to access your CRM and Lead Engine."}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+          <div className="space-y-2">
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              />
+            </div>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              />
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-red-500 text-xs text-center font-medium bg-red-500/10 py-2 rounded-lg"
+              >
+                {error}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button
+            type="submit"
+            disabled={isAuthInitializing || isSubmitting}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-all py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 group"
+          >
+            {isSubmitting ? "Processing..." : isSignUp ? "Sign Up" : "Sign In"}
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </form>
+
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-white/10"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-black px-2 text-muted-foreground">Or continue with</span>
           </div>
         </div>
-        
-        <h1 className="text-2xl font-semibold mb-2">Welcome Back</h1>
-        <p className="text-muted-foreground mb-8 text-sm">
-          {isAuthInitializing
-            ? "Checking your session..."
-            : "Sign in to access your CRM and Lead Engine."}
-        </p>
 
         <button
           onClick={signInWithGoogle}
-          disabled={isAuthInitializing}
-          className="w-full flex items-center justify-center gap-3 bg-white text-black hover:bg-gray-100 transition-colors py-3 px-4 rounded-xl font-medium"
+          disabled={isAuthInitializing || isSubmitting}
+          className="w-full flex items-center justify-center gap-3 bg-white text-black hover:bg-gray-100 transition-colors py-3 px-4 rounded-xl font-medium mb-6"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path
@@ -61,8 +147,21 @@ export default function LoginPage() {
               fill="#EA4335"
             />
           </svg>
-          Continue with Google
+          Google
         </button>
+
+        <p className="text-center text-sm text-muted-foreground">
+          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+          <button
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError(null);
+            }}
+            className="text-emerald-500 hover:text-emerald-400 font-medium"
+          >
+            {isSignUp ? "Sign In" : "Create Account"}
+          </button>
+        </p>
       </motion.div>
     </div>
   );
