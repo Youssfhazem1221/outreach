@@ -191,7 +191,6 @@ export default function AppShell() {
   };
 
   const handleBulkDelete = async (leadIds: string[]) => {
-    if (!confirm(`Are you sure you want to delete ${leadIds.length} leads?`)) return;
     try {
       const { writeBatch, doc } = await import("firebase/firestore");
       const batch = writeBatch(db);

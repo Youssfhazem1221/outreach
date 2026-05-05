@@ -1,7 +1,9 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Phone, Mail, Globe, MapPin, Building, Plus, CheckCircle2, Users, Save, FileText, ChevronDown, Loader2, Send, History, MessageSquare, Link, Check } from "lucide-react";
+import { X, ExternalLink, Mail, Phone, MapPin, Globe, History, Send, MessageSquare, Plus, Trash2, Calendar, Target, User, Copy, Check, ChevronDown } from "lucide-react";
+import { CustomSelect } from "./UI/CustomSelect";
+import { CustomModal } from "./UI/CustomModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebaseClient";
@@ -24,6 +26,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
   const [newNote, setNewNote] = useState("");
   const [isPostingNote, setIsPostingNote] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync local state when lead prop changes
@@ -125,14 +128,13 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    if (!lead || !confirm("Delete this note?")) return;
+  const handleDeleteNote = async () => {
+    if (!lead || !noteToDelete) return;
     try {
-      const updatedHistory = lead.history.filter((n: any) => n.id !== noteId);
+      const updatedHistory = lead.history.filter((n: any) => n.id !== noteToDelete);
       await updateDoc(doc(db, "leads", lead.id), { history: updatedHistory });
-      // Local update is safe here for deletion to feel snappy, 
-      // but the listener will also sync it.
       setLead((prev: any) => ({ ...prev, history: updatedHistory }));
+      setNoteToDelete(null);
     } catch (e) {
       console.error("Failed to delete note", e);
     }
@@ -195,24 +197,22 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                     )}
 
                     {/* Status — always editable (instant save) */}
-                    <div className="relative">
-                      <select
-                        className="appearance-none text-xs px-2 pr-6 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 outline-none cursor-pointer hover:bg-emerald-500/30 transition-colors"
-                        value={lead.status}
-                        onChange={(e) => {
-                          handleFieldChange("status", e.target.value);
-                          onUpdateStatus(lead.id, e.target.value);
-                        }}
-                      >
-                        <option value="New">New</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Replied">Replied</option>
-                        <option value="Call Booked">Call Booked</option>
-                        <option value="Closed">Closed</option>
-                        <option value="Not Interested">Not Interested</option>
-                      </select>
-                      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-emerald-400" />
-                    </div>
+                    <CustomSelect 
+                      value={lead.status}
+                      onChange={(val) => {
+                        handleFieldChange("status", val);
+                        onUpdateStatus(lead.id, val);
+                      }}
+                      options={[
+                        { value: "New", label: "New" },
+                        { value: "Contacted", label: "Contacted" },
+                        { value: "Replied", label: "Replied" },
+                        { value: "Call Booked", label: "Call Booked" },
+                        { value: "Closed", label: "Closed" },
+                        { value: "Not Interested", label: "Not Interested" },
+                      ]}
+                      className="w-36 text-[10px]"
+                    />
                   </div>
                 </div>
 
@@ -336,7 +336,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                                 {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                               </span>
                               <button 
-                                onClick={() => handleDeleteNote(item.id)}
+                                onClick={() => setNoteToDelete(item.id)}
                                 className="text-muted-foreground hover:text-red-400 transition-colors"
                               >
                                 <X size={10} />
@@ -520,8 +520,22 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
               )}
             </AnimatePresence>
           </motion.div>
-        </>
+        </motion.div>
       )}
+
+      <CustomModal 
+        isOpen={!!noteToDelete} 
+        onClose={() => setNoteToDelete(null)}
+        title="Delete Note"
+        description="Are you sure you want to delete this note?"
+        variant="danger"
+        footer={(
+          <>
+            <button onClick={() => setNoteToDelete(null)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+            <button onClick={handleDeleteNote} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">Delete Note</button>
+          </>
+        )}
+      />
     </AnimatePresence>
   );
 }

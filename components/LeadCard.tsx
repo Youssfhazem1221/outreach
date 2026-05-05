@@ -39,7 +39,7 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
       <div 
         ref={setNodeRef} 
         style={style} 
-        className="glass border-emerald-500/50 p-4 rounded-xl opacity-30 h-28" 
+        className="glass border-emerald-500/50 p-3 rounded-xl opacity-30 h-24" 
       />
     );
   }
@@ -55,7 +55,7 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="glass glass-hover p-4 rounded-xl cursor-grab active:cursor-grabbing mb-3 group relative overflow-hidden"
+      className="glass glass-hover p-3 rounded-xl cursor-grab active:cursor-grabbing mb-2 group relative overflow-hidden"
     >
       <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity" />
       

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Download, Search, Filter, ChevronDown, Tag } from "lucide-react";
+import { Download, Search, Filter, ChevronDown, Tag, Trash2, Edit3, MoreHorizontal } from "lucide-react";
+import { CustomSelect } from "./UI/CustomSelect";
+import { CustomModal } from "./UI/CustomModal";
 
 interface LeadsTableProps {
   leads: any[];
@@ -32,6 +33,11 @@ export function LeadsTable({
   const [labelFilter, setLabelFilter] = useState("All");
   const [ownerFilter, setOwnerFilter] = useState("All");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Modal states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isNicheModalOpen, setIsNicheModalOpen] = useState(false);
+  const [newNicheValue, setNewNicheValue] = useState("");
 
   const uniqueNiches = Array.from(new Set(leads.map(l => l.niche).filter(Boolean))).sort();
   const uniqueOwners = Array.from(new Set(leads.map(l => l.userEmail).filter(Boolean))).sort();
@@ -71,13 +77,15 @@ export function LeadsTable({
   const handleBulkDeleteAction = () => {
     onBulkDelete(selectedIds);
     setSelectedIds([]);
+    setIsDeleteModalOpen(false);
   };
 
   const handleBulkNicheAction = () => {
-    const newNiche = prompt("Enter the new niche/category for these leads:");
-    if (newNiche) {
-      onBulkNicheChange(selectedIds, newNiche);
+    if (newNicheValue) {
+      onBulkNicheChange(selectedIds, newNicheValue);
       setSelectedIds([]);
+      setIsNicheModalOpen(false);
+      setNewNicheValue("");
     }
   };
 
@@ -108,121 +116,193 @@ export function LeadsTable({
     document.body.removeChild(link);
   };
 
+  const bulkActionOptions = [
+    { value: "status", label: "Change Status", icon: <Edit3 size={14} /> },
+    { value: "niche", label: "Change Niche", icon: <Edit3 size={14} /> },
+    { value: "label", label: "Add Label", icon: <Tag size={14} /> },
+    { value: "delete", label: "Delete Leads", icon: <Trash2 size={14} /> },
+  ];
+
   return (
-    <div className="p-8 h-full flex flex-col">
+    <div className="p-6 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold mb-1">All Leads</h1>
-          <p className="text-muted-foreground text-sm">Manage and export your complete lead database.</p>
+          <h1 className="text-2xl font-bold mb-1">All Leads</h1>
+          <p className="text-muted-foreground text-xs">Manage and export your complete lead database.</p>
         </div>
-        <button 
-          onClick={exportCSV}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 rounded-xl transition-colors text-sm font-medium"
-        >
-          <Download size={16} /> Export CSV
-        </button>
+        <div className="flex gap-3">
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl animate-in slide-in-from-right-4 duration-300">
+              <span className="text-xs font-medium text-emerald-400">{selectedIds.length} Selected</span>
+              <div className="h-4 w-px bg-white/10 mx-1" />
+              
+              <button 
+                onClick={() => setIsNicheModalOpen(true)}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors"
+                title="Change Niche"
+              >
+                <Edit3 size={16} />
+              </button>
+              
+              <div className="relative group">
+                <button className="p-1.5 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors">
+                  <Tag size={16} />
+                </button>
+                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-[#0A0A0A] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[150px]">
+                  {customLabels.map(label => (
+                    <button
+                      key={label.id}
+                      onClick={() => handleBulkLabelAction(label.id)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2"
+                    >
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: label.color }} />
+                      {label.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="p-1.5 hover:bg-white/5 rounded-lg text-red-400/70 hover:text-red-400 transition-colors"
+                title="Delete Selected"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
+
+          <button 
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl transition-all text-xs font-medium active:scale-95"
+          >
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-4 mb-6">
+      <CustomModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete Leads"
+        description={`Are you sure you want to delete ${selectedIds.length} leads? This action cannot be undone.`}
+        variant="danger"
+        footer={(
+          <>
+            <button onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+            <button onClick={handleBulkDeleteAction} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">Delete Permanently</button>
+          </>
+        )}
+      />
+
+      <CustomModal 
+        isOpen={isNicheModalOpen} 
+        onClose={() => setIsNicheModalOpen(false)}
+        title="Update Niche"
+        description="Change the niche/category for all selected leads."
+        footer={(
+          <>
+            <button onClick={() => setIsNicheModalOpen(false)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+            <button onClick={handleBulkNicheAction} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors">Update Niche</button>
+          </>
+        )}
+      >
+        <input 
+          type="text"
+          placeholder="Enter new niche..."
+          value={newNicheValue}
+          onChange={(e) => setNewNicheValue(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500 text-sm transition-all"
+          autoFocus
+        />
+      </CustomModal>
+
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
           <input 
             type="text" 
-            placeholder="Search name, phone, or niche..." 
+            placeholder="Search leads..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2 outline-none focus:border-emerald-500 text-sm"
+            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-1.5 outline-none focus:border-emerald-500 text-xs transition-all"
           />
         </div>
         
-        <div className="flex flex-wrap gap-3">
-          <div className="relative w-40 group">
-            <Filter className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
-            >
-              <option value="All">All Statuses</option>
-              <option value="New">New</option>
-              <option value="Contacted">Contacted</option>
-              <option value="Replied">Replied</option>
-              <option value="Call Booked">Call Booked</option>
-              <option value="Closed">Closed</option>
-              <option value="Not Interested">Not Interested</option>
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <CustomSelect 
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: "All", label: "All Statuses" },
+              { value: "New", label: "New" },
+              { value: "Contacted", label: "Contacted" },
+              { value: "Replied", label: "Replied" },
+              { value: "Call Booked", label: "Call Booked" },
+              { value: "Closed", label: "Closed" },
+              { value: "Not Interested", label: "Not Interested" },
+            ]}
+            className="w-40"
+            icon={<Filter size={12} />}
+          />
 
-          <div className="relative w-40 group">
-            <select 
-              value={nicheFilter}
-              onChange={(e) => setNicheFilter(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-4 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
-            >
-              <option value="All">All Niches</option>
-              {uniqueNiches.map(n => (
-                <option key={n as string} value={n as string}>{n as string}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-          </div>
+          <CustomSelect 
+            value={nicheFilter}
+            onChange={setNicheFilter}
+            options={[
+              { value: "All", label: "All Niches" },
+              ...uniqueNiches.map(n => ({ value: n as string, label: n as string }))
+            ]}
+            className="w-40"
+          />
 
-          <div className="relative w-40 group">
-            <Tag className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
-            <select 
-              value={labelFilter}
-              onChange={(e) => setLabelFilter(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
-            >
-              <option value="All">All Labels</option>
-              {customLabels.map(l => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-          </div>
+          <CustomSelect 
+            value={labelFilter}
+            onChange={setLabelFilter}
+            options={[
+              { value: "All", label: "All Labels" },
+              ...customLabels.map(l => ({ value: l.id, label: l.name }))
+            ]}
+            className="w-40"
+            icon={<Tag size={12} />}
+          />
 
           {isAdmin && (
-            <div className="relative w-48 group">
-              <select 
-                value={ownerFilter}
-                onChange={(e) => setOwnerFilter(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 pr-10 py-2 outline-none focus:border-emerald-500 text-sm appearance-none cursor-pointer hover:bg-white/5 transition-all"
-              >
-                <option value="All">All Owners</option>
-                {uniqueOwners.map(o => (
-                  <option key={o as string} value={o as string}>{o as string}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
-            </div>
+            <CustomSelect 
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={[
+                { value: "All", label: "All Owners" },
+                ...uniqueOwners.map(o => ({ value: o as string, label: o as string }))
+              ]}
+              className="w-48"
+            />
           )}
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden border border-white/10 rounded-xl bg-white/5">
         <div className="overflow-auto h-full relative">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs uppercase bg-black/40 text-muted-foreground sticky top-0 z-10 backdrop-blur-md">
+          <table className="w-full text-xs text-left">
+            <thead className="text-[10px] uppercase bg-black/40 text-muted-foreground sticky top-0 z-10 backdrop-blur-md">
               <tr>
-                <th className="px-6 py-4 w-10">
+                <th className="px-6 py-3 w-10">
                   <input 
                     type="checkbox" 
                     checked={selectedIds.length > 0 && selectedIds.length === filteredLeads.length}
                     onChange={toggleSelectAll}
-                    className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                    className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-4 font-semibold">Name</th>
-                <th className="px-6 py-4 font-semibold">Phone / Email</th>
-                <th className="px-6 py-4 font-semibold">Location</th>
-                <th className="px-6 py-4 font-semibold">Niche</th>
-                <th className="px-6 py-4 font-semibold">Added</th>
-                <th className="px-6 py-4 font-semibold">Labels</th>
-                <th className="px-6 py-4 font-semibold">Status</th>
-                {isAdmin && <th className="px-6 py-4 font-semibold">Owner</th>}
-                <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                <th className="px-6 py-3 font-semibold">Name</th>
+                <th className="px-6 py-3 font-semibold">Phone / Email</th>
+                <th className="px-6 py-3 font-semibold">Location</th>
+                <th className="px-6 py-3 font-semibold">Niche</th>
+                <th className="px-6 py-3 font-semibold">Added</th>
+                <th className="px-6 py-3 font-semibold">Labels</th>
+                <th className="px-6 py-3 font-semibold">Status</th>
+                {isAdmin && <th className="px-6 py-3 font-semibold">Owner</th>}
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -232,89 +312,83 @@ export function LeadsTable({
                   onClick={() => onLeadClick(lead)}
                   className={`hover:bg-white/5 transition-colors group cursor-pointer ${selectedIds.includes(lead.id) ? 'bg-emerald-500/5' : ''}`}
                 >
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-6 py-3" onClick={(e) => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
                       checked={selectedIds.includes(lead.id)}
                       onChange={() => {}}
                       onClick={(e) => toggleSelectLead(lead.id, e)}
-                      className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                      className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
                     />
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
                       <div className="font-medium text-white">{lead.name}</div>
                       {lead.source === "groq_simulated" && (
-                        <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Simulated</span>
+                        <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider">Sim</span>
                       )}
                     </div>
-                    {lead.decisionMaker && <div className="text-xs text-muted-foreground mt-0.5">{lead.decisionMaker}</div>}
+                    {lead.decisionMaker && <div className="text-[10px] text-muted-foreground">{lead.decisionMaker}</div>}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-3">
                     <div className="font-medium">{lead.phone || "—"}</div>
-                    {lead.email && <div className="text-xs text-muted-foreground mt-0.5">{lead.email}</div>}
+                    {lead.email && <div className="text-[10px] text-muted-foreground">{lead.email}</div>}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-3">
                     <div>{lead.city || "—"}</div>
-                    {lead.country && <div className="text-xs text-muted-foreground mt-0.5">{lead.country}</div>}
+                    {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
                   </td>
-                  <td className="px-6 py-4">{lead.niche}</td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  <td className="px-6 py-3">{lead.niche}</td>
+                  <td className="px-6 py-3">
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
                         ? formatRelativeTime(lead.createdAt.toMillis())
                         : "—"}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-3">
                     {lead.labels && lead.labels.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {lead.labels.map((label: any) => (
                           <span 
                             key={label.id} 
-                            className="text-[10px] px-1.5 py-0.5 rounded font-medium border border-white/5 whitespace-nowrap flex items-center gap-1"
+                            className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 whitespace-nowrap flex items-center gap-1"
                             style={{ backgroundColor: `${label.color}15`, color: label.color }}
                           >
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: label.color }} />
+                            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
                             {label.name}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
+                      <span className="text-muted-foreground text-[10px]">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="relative group w-36">
-                      <select 
-                        value={lead.status}
-                        onChange={(e) => onStatusChange(lead.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()} // Prevent row click
-                        className="w-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded px-2 pr-6 py-1 text-xs outline-none focus:border-emerald-500 appearance-none cursor-pointer hover:bg-emerald-500/20 transition-all"
-                      >
-                        <option value="New">New</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Replied">Replied</option>
-                        <option value="Call Booked">Call Booked</option>
-                        <option value="Closed">Closed</option>
-                        <option value="Not Interested">Not Interested</option>
-                      </select>
-                      <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" />
-                    </div>
+                  <td className="px-6 py-2">
+                    <CustomSelect 
+                      value={lead.status}
+                      onChange={(val) => onStatusChange(lead.id, val)}
+                      options={[
+                        { value: "New", label: "New" },
+                        { value: "Contacted", label: "Contacted" },
+                        { value: "Replied", label: "Replied" },
+                        { value: "Call Booked", label: "Call Booked" },
+                        { value: "Closed", label: "Closed" },
+                        { value: "Not Interested", label: "Not Interested" },
+                      ]}
+                      className="w-28 text-[10px]"
+                    />
                   </td>
                   {isAdmin && (
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-3">
                       <div className="flex flex-col">
-                        <span className="text-white font-medium">{lead.userName || "Unknown"}</span>
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
+                        <span className="text-white">{lead.userName || "Unknown"}</span>
+                        <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => onLeadClick(lead)}
-                      className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
+                  <td className="px-6 py-3 text-right">
+                    <button className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                       View Details
                     </button>
                   </td>

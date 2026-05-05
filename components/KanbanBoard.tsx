@@ -37,10 +37,10 @@ function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; l
   });
 
   return (
-    <div className="flex flex-col w-[300px] shrink-0 bg-white/5 rounded-2xl border border-white/10 overflow-hidden h-full">
-      <div className="p-4 border-b border-white/10 bg-black/20 flex justify-between items-center">
-        <h3 className="font-semibold text-sm">{title}</h3>
-        <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full text-muted-foreground">{leads.length}</span>
+    <div className="flex flex-col w-[260px] shrink-0 bg-white/5 rounded-2xl border border-white/10 overflow-hidden h-full">
+      <div className="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center">
+        <h3 className="font-semibold text-xs">{title}</h3>
+        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full text-muted-foreground">{leads.length}</span>
       </div>
       
       <div ref={setNodeRef} className="flex-1 p-3 overflow-y-auto min-h-[150px]">
@@ -98,7 +98,7 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: Kan
   };
 
   return (
-    <div className="h-full flex gap-4 overflow-x-auto pb-4 p-6">
+    <div className="h-full flex gap-3 overflow-x-auto pb-4 p-4">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
