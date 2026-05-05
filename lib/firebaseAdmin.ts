@@ -4,7 +4,7 @@ const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 // Handle escaped newlines in the private key string from env vars
 const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY
-  ? process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, "\n")
+  ? process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/^"(.*)"$/, '$1').replace(/\\n/g, "\n")
   : undefined;
 
 // Singleton pattern to prevent re-initialization crashes in Next.js development and edge
