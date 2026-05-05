@@ -11,8 +11,12 @@ const firebaseConfig = {
 // Initialize Firebase only if it hasn't been initialized yet
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+// To prevent Vercel build crashes when env vars are missing during the build phase,
+// we only call getAuth() and getFirestore() if the API key is actually present.
+const hasApiKey = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+const auth = hasApiKey ? getAuth(app) : ({} as any);
+const db = hasApiKey ? getFirestore(app) : ({} as any);
+const googleProvider = hasApiKey ? new GoogleAuthProvider() : ({} as any);
 
 export { app, auth, db, googleProvider };
