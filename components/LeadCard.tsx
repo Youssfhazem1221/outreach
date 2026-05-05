@@ -116,6 +116,27 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
           <div className={`w-2 h-2 rounded-full ${lead.source === 'gemini_search' ? 'bg-blue-400' : 'bg-emerald-400'}`} title={`Source: ${lead.source}`} />
         </div>
       </div>
+      
+      <div className="flex justify-end mt-2">
+        <span className="text-[8px] text-muted-foreground italic">
+          {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
+            ? formatRelativeTime(lead.createdAt.toMillis())
+            : ""}
+        </span>
+      </div>
     </div>
   );
+}
+
+function formatRelativeTime(timestamp: number) {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "Just now";
 }

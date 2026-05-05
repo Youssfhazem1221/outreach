@@ -161,6 +161,7 @@ export function LeadsTable({
                 <th className="px-6 py-4 font-semibold">Phone / Email</th>
                 <th className="px-6 py-4 font-semibold">Location</th>
                 <th className="px-6 py-4 font-semibold">Niche</th>
+                <th className="px-6 py-4 font-semibold">Added</th>
                 <th className="px-6 py-4 font-semibold">Labels</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
                 {isAdmin && <th className="px-6 py-4 font-semibold">Owner</th>}
@@ -201,6 +202,13 @@ export function LeadsTable({
                     {lead.country && <div className="text-xs text-muted-foreground mt-0.5">{lead.country}</div>}
                   </td>
                   <td className="px-6 py-4">{lead.niche}</td>
+                  <td className="px-6 py-4">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
+                        ? formatRelativeTime(lead.createdAt.toMillis())
+                        : "—"}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     {lead.labels && lead.labels.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
@@ -349,4 +357,17 @@ export function LeadsTable({
       )}
     </div>
   );
+}
+
+function formatRelativeTime(timestamp: number) {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "Just now";
 }
