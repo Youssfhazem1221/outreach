@@ -43,6 +43,7 @@ export function SettingsPanel() {
 
   const fetchUsers = async () => {
     setIsLoadingUsers(true);
+    setUsers([]); // Clear current list to show loading
     try {
       const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/users", {
@@ -51,9 +52,14 @@ export function SettingsPanel() {
         body: JSON.stringify({ idToken })
       });
       const data = await res.json();
+      if (!res.ok) {
+        console.error("User Fetch Error:", data.error);
+        if (res.status === 403) alert("Your Admin token is stale. Please Log Out and Log Back In to see the user list.");
+        return;
+      }
       if (data.users) setUsers(data.users);
-    } catch {
-      console.error("Failed to load users");
+    } catch (err) {
+      console.error("Failed to load users:", err);
     } finally {
       setIsLoadingUsers(false);
     }
@@ -259,7 +265,15 @@ export function SettingsPanel() {
             <table className="w-full text-sm text-left">
               <thead className="bg-black/40 text-muted-foreground uppercase text-xs">
                 <tr>
-                  <th className="px-6 py-4">User</th>
+                  <th className="px-6 py-4 flex items-center gap-4">
+                    User
+                    <button 
+                      onClick={fetchUsers}
+                      className="text-emerald-400 hover:text-emerald-300 transition-colors lowercase font-normal"
+                    >
+                      (refresh)
+                    </button>
+                  </th>
                   <th className="px-6 py-4">Signed Up</th>
                   <th className="px-6 py-4">Role</th>
                 </tr>

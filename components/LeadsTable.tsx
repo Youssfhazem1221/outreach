@@ -12,6 +12,7 @@ interface LeadsTableProps {
   onBulkNicheChange: (leadIds: string[], newNiche: string) => void;
   onBulkLabelAdd: (leadIds: string[], labelId: string) => void;
   customLabels: any[];
+  isAdmin?: boolean;
 }
 
 export function LeadsTable({ 
@@ -22,7 +23,8 @@ export function LeadsTable({
   onBulkStatusChange,
   onBulkNicheChange,
   onBulkLabelAdd,
-  customLabels
+  customLabels,
+  isAdmin
 }: LeadsTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -78,7 +80,7 @@ export function LeadsTable({
     if (leads.length === 0) return;
     
     // Get all unique keys from all leads to form headers
-    const headers = ["name", "phone", "email", "website", "address", "city", "country", "niche", "decisionMaker", "status", "source"];
+    const headers = ["name", "phone", "email", "website", "address", "city", "country", "niche", "decisionMaker", "status", "source", "userEmail"];
     
     const csvContent = [
       headers.join(","),
@@ -161,6 +163,7 @@ export function LeadsTable({
                 <th className="px-6 py-4 font-semibold">Niche</th>
                 <th className="px-6 py-4 font-semibold">Labels</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
+                {isAdmin && <th className="px-6 py-4 font-semibold">Owner</th>}
                 <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -234,6 +237,14 @@ export function LeadsTable({
                       <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-400 pointer-events-none" />
                     </div>
                   </td>
+                  {isAdmin && (
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-white font-medium">{lead.userName || "Unknown"}</span>
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-right">
                     <button 
                       onClick={() => onLeadClick(lead)}

@@ -26,11 +26,12 @@ interface KanbanBoardProps {
   leads: any[];
   onStatusChange: (leadId: string, newStatus: string) => void;
   onLeadClick: (lead: any) => void;
+  isAdmin?: boolean;
 }
 
 const COLUMNS = ["New", "Contacted", "Replied", "Call Booked", "Closed", "Not Interested"];
 
-function KanbanColumn({ title, leads, onLeadClick }: { title: string; leads: any[]; onLeadClick: (lead: any) => void }) {
+function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; leads: any[]; onLeadClick: (lead: any) => void; isAdmin?: boolean }) {
   const { setNodeRef } = useDroppable({
     id: title,
   });
@@ -45,7 +46,7 @@ function KanbanColumn({ title, leads, onLeadClick }: { title: string; leads: any
       <div ref={setNodeRef} className="flex-1 p-3 overflow-y-auto min-h-[150px]">
         <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
+            <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} isAdmin={isAdmin} />
           ))}
         </SortableContext>
       </div>
@@ -53,7 +54,7 @@ function KanbanColumn({ title, leads, onLeadClick }: { title: string; leads: any
   );
 }
 
-export function KanbanBoard({ leads, onStatusChange, onLeadClick }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: KanbanBoardProps) {
   const [activeLead, setActiveLead] = useState<any | null>(null);
 
   const sensors = useSensors(
@@ -110,13 +111,14 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick }: KanbanBoardP
             title={col}
             leads={leads.filter((l) => l.status === col)}
             onLeadClick={onLeadClick}
+            isAdmin={isAdmin}
           />
         ))}
 
         <DragOverlay>
           {activeLead ? (
             <div className="rotate-2 scale-105 shadow-2xl cursor-grabbing">
-              <LeadCard lead={activeLead} onClick={() => {}} />
+              <LeadCard lead={activeLead} onClick={() => {}} isAdmin={isAdmin} />
             </div>
           ) : null}
         </DragOverlay>

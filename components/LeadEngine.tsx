@@ -117,6 +117,8 @@ export function LeadEngine() {
       await addDoc(collection(db, "leads"), {
         ...lead,
         userId: user.uid,
+        userEmail: user.email,
+        userName: user.displayName || user.email?.split("@")[0],
         labels: selectedLabelId ? [selectedLabelId] : [],
         status: "New",
         createdAt: serverTimestamp(),
@@ -145,6 +147,8 @@ export function LeadEngine() {
         batch.set(newDocRef, {
           ...lead,
           userId: user.uid,
+          userEmail: user.email,
+          userName: user.displayName || user.email?.split("@")[0],
           labels: selectedLabelId ? [selectedLabelId] : [],
           status: "New",
           createdAt: serverTimestamp(),

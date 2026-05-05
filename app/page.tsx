@@ -301,6 +301,7 @@ export default function AppShell() {
             leads={hydratedLeads} 
             onStatusChange={handleStatusChange} 
             onLeadClick={(l) => { setSelectedLead(l); setIsDrawerOpen(true); }}
+            isAdmin={role === "admin"}
           />
         )}
         {currentView === "table" && (
@@ -313,6 +314,7 @@ export default function AppShell() {
             onBulkNicheChange={handleBulkNicheChange}
             onBulkLabelAdd={handleBulkLabelAdd}
             customLabels={customLabels}
+            isAdmin={role === "admin"}
           />
         )}
         {currentView === "engine" && <LeadEngine />}
