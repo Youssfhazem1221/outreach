@@ -73,6 +73,10 @@ const CHANNEL_COLORS: Record<string, string> = {
   Email: "#3b82f6",
   LinkedIn: "#0A66C2",
   Instagram: "#E1306C",
+  Facebook: "#1877F2",
+  Twitter: "#1DA1F2",
+  Tiktok: "#ff0050",
+  Website: "#10b981",
   Other: "#6b7280",
 };
 
@@ -193,7 +197,7 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
 
     return Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+      .slice(0, 5)
       .map(([niche, count]) => ({ niche, count }));
   }, [leads]);
 
@@ -201,13 +205,27 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
     const counts: Record<string, number> = {};
 
     leads.forEach((lead) => {
-      const channel = normalizeText(lead.channel, "Other");
+      let channel = normalizeText(lead.channel, "Website");
+      
+      // Capitalize properly
+      if (channel.toLowerCase() === "x") channel = "Twitter";
+      channel = channel.charAt(0).toUpperCase() + channel.slice(1).toLowerCase();
+      
       counts[channel] = (counts[channel] || 0) + 1;
     });
 
-    return Object.entries(counts)
+    const sorted = Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
+
+    // Group into "Other" if there are more than 5 distinct channels
+    if (sorted.length > 5) {
+      const top4 = sorted.slice(0, 4);
+      const otherValue = sorted.slice(4).reduce((sum, item) => sum + item.value, 0);
+      return [...top4, { name: "Other", value: otherValue }];
+    }
+
+    return sorted;
   }, [leads]);
 
   const cityData = useMemo(() => {
