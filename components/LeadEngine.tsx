@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Globe, MapPin, Target, CheckCircle2, Tag, ChevronDown, Bookmark, Trash2, History, X } from "lucide-react";
+import { Search, Loader2, Globe, MapPin, Target, CheckCircle2, Tag, ChevronDown, Bookmark, Trash2, History, X, Mail, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth, db } from "@/lib/firebaseClient";
 import { doc, getDoc, collection, addDoc, query as fsQuery, where, onSnapshot, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { CustomSelect } from "./ui/CustomSelect";
+import { CustomModal } from "./ui/CustomModal";
 
 export function LeadEngine() {
   const { user } = useAuth();
@@ -22,9 +24,14 @@ export function LeadEngine() {
   const [labels, setLabels] = useState<{ id: string, name: string, color: string }[]>([]);
   const [savedSearches, setSavedSearches] = useState<any[]>([]);
   const [isSavingSearch, setIsSavingSearch] = useState(false);
-  const [isImporting, setIsImporting] = useState<string | null>(null); // To track individual imports
+  const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string, message: string, type: "success" | "error" | "info" }[]>([]);
+  const [searchMeta, setSearchMeta] = useState<any>(null);
+  // Modal states
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveModalName, setSaveModalName] = useState("");
+  const [deleteSearchId, setDeleteSearchId] = useState<string | null>(null);
 
   const addNotification = (message: string, type: "success" | "error" | "info" = "success") => {
     const id = Math.random().toString(36).substring(7);
@@ -59,27 +66,18 @@ export function LeadEngine() {
   }, [user]);
 
   const saveCurrentSearch = async () => {
-    if (!query || !location || !user) return;
-    const name = prompt("Enter a name for this search configuration:");
-    if (!name) return;
-
+    if (!saveModalName.trim()) return;
     setIsSavingSearch(true);
     try {
       await addDoc(collection(db, "saved_searches"), {
-        userId: user.uid,
-        name,
-        params: {
-          query,
-          location,
-          country,
-          scope,
-          offer,
-          count,
-          selectedLabelId
-        },
+        userId: user!.uid,
+        name: saveModalName.trim(),
+        params: { query, location, country, scope, offer, count, selectedLabelId },
         createdAt: serverTimestamp()
       });
       addNotification("Search configuration bookmarked!");
+      setSaveModalOpen(false);
+      setSaveModalName("");
     } catch (err) {
       console.error("Failed to save search", err);
       addNotification("Failed to save search.", "error");
@@ -99,13 +97,15 @@ export function LeadEngine() {
     setSelectedLabelId(p.selectedLabelId || "");
   };
 
-  const deleteSavedSearch = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (!confirm("Delete this saved search?")) return;
+  const handleDeleteSavedSearch = async () => {
+    if (!deleteSearchId) return;
     try {
-      await deleteDoc(doc(db, "saved_searches", id));
+      await deleteDoc(doc(db, "saved_searches", deleteSearchId));
+      addNotification("Saved search deleted.");
     } catch (err) {
       console.error(err);
+    } finally {
+      setDeleteSearchId(null);
     }
   };
 
@@ -192,6 +192,7 @@ export function LeadEngine() {
       if (!response.ok) throw new Error(data.error || "Failed to fetch leads");
 
       setResults(data.leads || []);
+      setSearchMeta(data.meta || null);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -270,57 +271,46 @@ export function LeadEngine() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">Country</label>
-                  <div className="relative group">
-                    <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
-                    <select
-                      value={country}
-                      onChange={(e) => setCountry(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 outline-none focus:border-emerald-500 transition-all appearance-none cursor-pointer hover:bg-white/5"
-                    >
-                      <option value="Egypt">Egypt</option>
-                      <option value="USA">United States</option>
-                      <option value="UK">United Kingdom</option>
-                      <option value="UAE">United Arab Emirates</option>
-                      <option value="Saudi Arabia">Saudi Arabia</option>
-                      <option value="Australia">Australia</option>
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-3.5 text-muted-foreground pointer-events-none" />
-                  </div>
+                  <CustomSelect
+                    value={country}
+                    onChange={setCountry}
+                    options={[
+                      { value: "Egypt", label: "Egypt" },
+                      { value: "USA", label: "United States" },
+                      { value: "UK", label: "United Kingdom" },
+                      { value: "UAE", label: "United Arab Emirates" },
+                      { value: "Saudi Arabia", label: "Saudi Arabia" },
+                      { value: "Australia", label: "Australia" },
+                    ]}
+                    icon={<Globe size={14} />}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-white/10">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">Search Scope</label>
-                  <div className="relative group">
-                    <select
-                      value={scope}
-                      onChange={(e) => setScope(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 pr-10 py-2.5 outline-none focus:border-emerald-500 transition-all appearance-none cursor-pointer hover:bg-white/5"
-                    >
-                      <option value="Local">Local (City only)</option>
-                      <option value="Global">Global (Entire country)</option>
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-3.5 text-muted-foreground pointer-events-none" />
-                  </div>
+                  <CustomSelect
+                    value={scope}
+                    onChange={setScope}
+                    options={[
+                      { value: "Local", label: "Local (City only)" },
+                      { value: "Global", label: "Global (Entire country)" },
+                    ]}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">Auto-Assign Label</label>
-                  <div className="relative group">
-                    <Tag className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-emerald-500 transition-colors" />
-                    <select
-                      value={selectedLabelId}
-                      onChange={(e) => setSelectedLabelId(e.target.value)}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 outline-none focus:border-emerald-500 transition-all appearance-none cursor-pointer hover:bg-white/5"
-                    >
-                      <option value="">No Label</option>
-                      {labels.map(l => (
-                        <option key={l.id} value={l.id}>{l.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-3.5 text-muted-foreground pointer-events-none" />
-                  </div>
+                  <CustomSelect
+                    value={selectedLabelId}
+                    onChange={setSelectedLabelId}
+                    options={[
+                      { value: "", label: "No Label" },
+                      ...labels.map(l => ({ value: l.id, label: l.name }))
+                    ]}
+                    icon={<Tag size={14} />}
+                  />
                 </div>
 
                 <div className="space-y-2 col-span-full">
@@ -349,7 +339,7 @@ export function LeadEngine() {
                 </button>
                 <button
                   type="button"
-                  onClick={saveCurrentSearch}
+                  onClick={() => { if (query && location) setSaveModalOpen(true); }}
                   disabled={isSavingSearch || !query}
                   className="px-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center transition-colors text-muted-foreground hover:text-emerald-400"
                   title="Save this search configuration"
@@ -372,7 +362,10 @@ export function LeadEngine() {
                     <CheckCircle2 className="text-emerald-500" />
                     <div>
                       <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Review Found Leads</h2>
-                      <p className="text-xs text-muted-foreground">{results.length} potentials waiting for approval.</p>
+                      <p className="text-xs text-muted-foreground">
+                        {results.length} potentials found
+                        {searchMeta && ` · ${searchMeta.totalRawResults} scanned · ${searchMeta.passesCompleted}/3 passes`}
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -394,13 +387,32 @@ export function LeadEngine() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {results.map((lead, i) => (
-                    <div key={lead.tempId || i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-start justify-between group hover:border-emerald-500/30 transition-all">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white">{lead.name}</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">{lead.niche} • {lead.city}</p>
+                    <div key={lead.tempId || i} className={`bg-white/5 border p-4 rounded-2xl flex items-start justify-between group transition-all ${lead.alreadyInCRM ? 'border-amber-500/30 opacity-60' : 'border-white/10 hover:border-emerald-500/30'}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-white truncate">{lead.name}</h3>
+                          {lead.alreadyInCRM && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">In CRM</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{lead.niche} · {lead.city}</p>
+                        
+                        {/* Star Rating */}
+                        <div className="flex items-center gap-0.5 mt-1.5">
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star key={s} size={10} className={s <= lead.rating ? 'text-amber-400 fill-amber-400' : 'text-white/10'} />
+                          ))}
+                          <span className="text-[9px] text-muted-foreground ml-1">{lead.rating}/5</span>
+                        </div>
+
                         <div className="flex flex-wrap gap-2 mt-3">
-                          {lead.phone && <span className="bg-white/5 text-muted-foreground px-2 py-1 rounded text-[10px]">📞 {lead.phone}</span>}
-                          {lead.website && (
+                          {lead.phone && lead.phone !== "[No Phone Found]" && <span className="bg-white/5 text-muted-foreground px-2 py-1 rounded text-[10px]">📞 {lead.phone}</span>}
+                          {lead.email && (
+                            <span className="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-[10px] flex items-center gap-1">
+                              <Mail size={9} /> {lead.email}
+                            </span>
+                          )}
+                          {lead.website && lead.website !== "[No Link Found]" && (
                             <a 
                               href={lead.website} 
                               target="_blank" 
@@ -410,35 +422,30 @@ export function LeadEngine() {
                               {lead.websiteLabel || "🌐 Website"}
                             </a>
                           )}
-                          <a 
-                            href={lead.website} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="bg-white/5 hover:bg-white/10 text-muted-foreground px-2 py-1 rounded text-[10px] flex items-center gap-1 transition-colors"
-                            title="Verify original search source"
-                          >
-                            Source Link
-                          </a>
                         </div>
                       </div>
                       
-                      <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleAcceptLead(lead)}
-                          disabled={isImporting === lead.tempId}
-                          className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-xl border border-emerald-500/20 transition-all active:scale-90"
-                          title="Accept & Add to CRM"
-                        >
-                          {isImporting === lead.tempId ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
-                        </button>
-                        <button
-                          onClick={() => setResults(prev => prev.filter(l => l.tempId !== lead.tempId))}
-                          className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 transition-all active:scale-90"
-                          title="Reject & Discard"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
+                      {!lead.alreadyInCRM ? (
+                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                          <button
+                            onClick={() => handleAcceptLead(lead)}
+                            disabled={isImporting === lead.tempId}
+                            className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-xl border border-emerald-500/20 transition-all active:scale-90"
+                            title="Accept & Add to CRM"
+                          >
+                            {isImporting === lead.tempId ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
+                          </button>
+                          <button
+                            onClick={() => setResults(prev => prev.filter(l => l.tempId !== lead.tempId))}
+                            className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 transition-all active:scale-90"
+                            title="Reject & Discard"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-amber-400/60 font-medium ml-2 whitespace-nowrap">Duplicate</div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -468,7 +475,7 @@ export function LeadEngine() {
                       <div className="flex justify-between items-start mb-1">
                         <span className="text-sm font-medium text-white truncate pr-4">{search.name}</span>
                         <div
-                          onClick={(e) => deleteSavedSearch(e, search.id)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteSearchId(search.id); }}
                           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded-md transition-all cursor-pointer"
                         >
                           <Trash2 size={12} />
@@ -491,12 +498,50 @@ export function LeadEngine() {
             <div className="glass p-6 rounded-2xl bg-emerald-500/5 border-emerald-500/20">
               <h3 className="text-sm font-semibold text-emerald-400 mb-2">Search Tip</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Use specific niches like "Eco-friendly cafes" instead of just "Food" for better target accuracy.
+                Use specific niches like &quot;Eco-friendly cafes&quot; instead of just &quot;Food&quot; for better target accuracy.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Save Search Modal */}
+      <CustomModal
+        isOpen={saveModalOpen}
+        onClose={() => { setSaveModalOpen(false); setSaveModalName(""); }}
+        title="Save Search Configuration"
+        description="Give this search a name so you can quickly reload it later."
+        footer={(
+          <>
+            <button onClick={() => { setSaveModalOpen(false); setSaveModalName(""); }} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+            <button onClick={saveCurrentSearch} disabled={!saveModalName.trim()} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors">Save</button>
+          </>
+        )}
+      >
+        <input
+          type="text"
+          placeholder="e.g. Dentists in Maadi"
+          value={saveModalName}
+          onChange={(e) => setSaveModalName(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500 text-sm transition-all"
+          autoFocus
+        />
+      </CustomModal>
+
+      {/* Delete Search Modal */}
+      <CustomModal
+        isOpen={!!deleteSearchId}
+        onClose={() => setDeleteSearchId(null)}
+        title="Delete Saved Search"
+        description="Are you sure you want to delete this saved search configuration?"
+        variant="danger"
+        footer={(
+          <>
+            <button onClick={() => setDeleteSearchId(null)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+            <button onClick={handleDeleteSavedSearch} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">Delete</button>
+          </>
+        )}
+      />
 
       {/* Notifications Portal */}
       <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3">
