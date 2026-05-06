@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
 import { streamText } from "ai";
 import { createGroq } from "@ai-sdk/groq";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
 export const runtime = "nodejs";
 
@@ -22,10 +24,35 @@ export async function POST(req: NextRequest) {
     const userSettingsDoc = await adminDb!.collection("users").doc(userId).collection("settings").doc("api_keys").get();
     const globalSettingsDoc = await adminDb!.collection("settings").doc("api_keys").get();
     
-    const GROQ_API_KEY = userSettingsDoc.data()?.groq || globalSettingsDoc.data()?.groq || process.env.GROQ_API_KEY;
+    let providers: any[] = userSettingsDoc.data()?.ai_providers || globalSettingsDoc.data()?.ai_providers || [];
+    
+    // Filter to only active providers
+    let activeProviders = providers.filter(p => p.isActive && p.apiKey && p.model);
 
-    if (!GROQ_API_KEY) {
-      return new Response(JSON.stringify({ error: "Groq API key is missing. Please add one in Settings." }), { status: 400 });
+    // Legacy fallback for old env vars if no providers configured
+    if (activeProviders.length === 0) {
+      if (process.env.GROQ_API_KEY) {
+        activeProviders.push({
+          name: "Legacy Env Groq",
+          providerType: "groq",
+          apiKey: process.env.GROQ_API_KEY,
+          model: "llama-3.1-8b-instant",
+          isActive: true
+        });
+      }
+      if (process.env.OPENAI_API_KEY) {
+        activeProviders.push({
+          name: "Legacy Env OpenAI",
+          providerType: "openai",
+          apiKey: process.env.OPENAI_API_KEY,
+          model: "gpt-4o",
+          isActive: true
+        });
+      }
+    }
+
+    if (activeProviders.length === 0) {
+      return new Response(JSON.stringify({ error: "No AI Providers configured. Please add one in Settings." }), { status: 400 });
     }
 
     const prompt = `
@@ -57,20 +84,45 @@ Return ONLY a JSON object (no markdown formatting, no \`\`\`json) with these exa
 }
 `;
 
-    try {
-      const groq = createGroq({ apiKey: GROQ_API_KEY });
-      const result = streamText({
-        model: groq("llama-3.1-8b-instant"),
-        prompt: prompt,
-        temperature: 0.3,
-      });
-      
-      return result.toTextStreamResponse();
-    } catch (apiError: unknown) {
-      const apiMessage = apiError instanceof Error ? apiError.message : String(apiError);
-      console.error("Groq API Error:", apiMessage);
-      throw new Error(`AI generation failed: ${apiMessage}`);
+    let lastError = null;
+
+    for (const provider of activeProviders) {
+      try {
+        let modelClient;
+        if (provider.providerType === "openrouter") {
+          modelClient = createOpenAI({ baseURL: 'https://openrouter.ai/api/v1', apiKey: provider.apiKey })(provider.model);
+        } else if (provider.providerType === "openai") {
+          modelClient = createOpenAI({ apiKey: provider.apiKey })(provider.model);
+        } else if (provider.providerType === "groq") {
+          modelClient = createGroq({ apiKey: provider.apiKey })(provider.model);
+        } else if (provider.providerType === "google") {
+          modelClient = createGoogleGenerativeAI({ apiKey: provider.apiKey })(provider.model);
+        } else if (provider.providerType === "anthropic") {
+          // You would need @ai-sdk/anthropic for native anthropic, but we can fallback to openai compatibility if needed
+          // For now, if they use openrouter they get anthropic.
+          console.warn("Native Anthropic SDK not yet installed, skipping.");
+          continue;
+        } else {
+          continue;
+        }
+
+        const result = streamText({
+          model: modelClient,
+          prompt: prompt,
+          temperature: 0.3,
+        });
+        
+        return result.toTextStreamResponse();
+      } catch (apiError: unknown) {
+        const apiMessage = apiError instanceof Error ? apiError.message : String(apiError);
+        console.error(`Provider ${provider.name} (${provider.providerType}) failed:`, apiMessage);
+        lastError = apiMessage;
+        // Continue to the next provider in the loop
+      }
     }
+
+    // If loop exhausts without returning, all providers failed
+    throw new Error(`All AI providers failed. Last error: ${lastError}`);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Groq Outreach Error:", message);

@@ -17,6 +17,137 @@ type UserRecord = {
 
 type LabelRecord = { id: string; name: string; color: string };
 
+export type AIProvider = {
+  id: string;
+  name: string;
+  providerType: "openrouter" | "groq" | "openai" | "anthropic" | "google";
+  apiKey: string;
+  model: string;
+  isActive: boolean;
+};
+
+function ProviderList({ 
+  providers, 
+  setProviders 
+}: { 
+  providers: AIProvider[], 
+  setProviders: (p: AIProvider[]) => void 
+}) {
+  const addProvider = () => {
+    setProviders([...providers, {
+      id: Date.now().toString(),
+      name: "New Provider",
+      providerType: "openrouter",
+      apiKey: "",
+      model: "",
+      isActive: true
+    }]);
+  };
+
+  const updateProvider = (id: string, field: keyof AIProvider, value: any) => {
+    setProviders(providers.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const removeProvider = (id: string) => {
+    setProviders(providers.filter(p => p.id !== id));
+  };
+
+  return (
+    <div className="space-y-4">
+      {providers.map((p, index) => (
+        <div key={p.id} className="bg-black/20 p-4 rounded-xl border border-white/10 space-y-3 relative group">
+          <div className="flex items-center justify-between">
+             <div className="flex items-center gap-3">
+               <span className="text-xs font-bold text-muted-foreground bg-white/5 px-2 py-1 rounded">#{index + 1} Priority</span>
+               <input 
+                 type="text" 
+                 value={p.name} 
+                 onChange={(e) => updateProvider(p.id, "name", e.target.value)} 
+                 className="bg-transparent border-none outline-none font-medium text-white placeholder-white/30"
+                 placeholder="Provider Name"
+               />
+             </div>
+             <div className="flex items-center gap-2">
+               <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                 <input type="checkbox" checked={p.isActive} onChange={(e) => updateProvider(p.id, "isActive", e.target.checked)} className="rounded bg-black/40 border-white/10" />
+                 Active
+               </label>
+               <button type="button" onClick={() => removeProvider(p.id)} className="text-muted-foreground hover:text-red-400 p-1">
+                 <Trash2 size={16} />
+               </button>
+             </div>
+          </div>
+          <div className="flex gap-2 mb-1">
+            <button 
+              type="button" 
+              disabled={index === 0}
+              onClick={() => {
+                const newArr = [...providers];
+                [newArr[index - 1], newArr[index]] = [newArr[index], newArr[index - 1]];
+                setProviders(newArr);
+              }}
+              className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-colors"
+            >
+              ↑ Move Up
+            </button>
+            <button 
+              type="button" 
+              disabled={index === providers.length - 1}
+              onClick={() => {
+                const newArr = [...providers];
+                [newArr[index + 1], newArr[index]] = [newArr[index], newArr[index + 1]];
+                setProviders(newArr);
+              }}
+              className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 transition-colors"
+            >
+              ↓ Move Down
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select 
+                value={p.providerType} 
+                onChange={(e) => updateProvider(p.id, "providerType", e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 text-sm"
+              >
+                <option value="openrouter">OpenRouter</option>
+                <option value="groq">Groq</option>
+                <option value="openai">OpenAI</option>
+                <option value="google">Google (Gemini)</option>
+                <option value="anthropic">Anthropic</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">API Key</label>
+              <input 
+                type="password" 
+                value={p.apiKey} 
+                onChange={(e) => updateProvider(p.id, "apiKey", e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 text-sm font-mono"
+                placeholder="sk-..."
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Model</label>
+              <input 
+                type="text" 
+                value={p.model} 
+                onChange={(e) => updateProvider(p.id, "model", e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-emerald-500 text-sm font-mono"
+                placeholder="e.g. openai/gpt-4o"
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button type="button" onClick={addProvider} className="w-full py-3 border border-dashed border-white/20 rounded-xl text-muted-foreground hover:text-white hover:border-white/40 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
+        <Plus size={16} /> Add AI Provider
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPanel() {
   const { role } = useAuth();
   const [activeTab, setActiveTab] = useState<"personal" | "users" | "apis" | "labels">("personal");
@@ -27,13 +158,12 @@ export function SettingsPanel() {
 
   // API State
   const [tavilyKey, setTavilyKey] = useState("");
-  const [geminiKey, setGeminiKey] = useState("");
-  const [groqKey, setGroqKey] = useState(""); // Added Groq
+  const [systemProviders, setSystemProviders] = useState<AIProvider[]>([]);
   const [isSavingApi, setIsSavingApi] = useState(false);
   
   // Personal Settings State
   const [personalTavily, setPersonalTavily] = useState("");
-  const [personalGroq, setPersonalGroq] = useState("");
+  const [personalProviders, setPersonalProviders] = useState<AIProvider[]>([]);
   const [isSavingPersonal, setIsSavingPersonal] = useState(false);
 
   // Labels State
@@ -72,8 +202,7 @@ export function SettingsPanel() {
         const apiDoc = await getDoc(doc(db, "settings", "api_keys"));
         if (apiDoc.exists()) {
           setTavilyKey(apiDoc.data().tavily || "");
-          setGeminiKey(apiDoc.data().gemini || "");
-          setGroqKey(apiDoc.data().groq || "");
+          setSystemProviders(apiDoc.data().ai_providers || []);
         }
 
         const labelDoc = await getDoc(doc(db, "settings", "labels"));
@@ -87,7 +216,7 @@ export function SettingsPanel() {
         const personalDoc = await getDoc(doc(db, "users", auth.currentUser.uid, "settings", "api_keys"));
         if (personalDoc.exists()) {
           setPersonalTavily(personalDoc.data().tavily || "");
-          setPersonalGroq(personalDoc.data().groq || "");
+          setPersonalProviders(personalDoc.data().ai_providers || []);
         }
       }
     } catch {
@@ -124,8 +253,7 @@ export function SettingsPanel() {
     try {
       await setDoc(doc(db, "settings", "api_keys"), {
         tavily: tavilyKey,
-        gemini: geminiKey,
-        groq: groqKey
+        ai_providers: systemProviders
       }, { merge: true });
       alert("System API keys saved successfully");
     } catch {
@@ -142,7 +270,7 @@ export function SettingsPanel() {
     try {
       await setDoc(doc(db, "users", auth.currentUser.uid, "settings", "api_keys"), {
         tavily: personalTavily,
-        groq: personalGroq
+        ai_providers: personalProviders
       }, { merge: true });
       alert("Personal API keys saved successfully");
     } catch {
@@ -239,14 +367,8 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Personal Groq API Key</label>
-                <input 
-                  type="password" 
-                  value={personalGroq} 
-                  onChange={(e) => setPersonalGroq(e.target.value)}
-                  placeholder="gsk_..." 
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
-                />
+                <label className="text-sm font-medium text-muted-foreground">Personal AI Providers (Outreach Gen)</label>
+                <ProviderList providers={personalProviders} setProviders={setPersonalProviders} />
               </div>
               <button 
                 type="submit" 
@@ -331,14 +453,8 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">Fallback Groq API Key</label>
-                <input 
-                  type="password" 
-                  value={groqKey} 
-                  onChange={(e) => setGroqKey(e.target.value)}
-                  placeholder="gsk_..." 
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-emerald-500 font-mono"
-                />
+                <label className="text-sm font-medium text-muted-foreground">Fallback AI Providers (Outreach Gen)</label>
+                <ProviderList providers={systemProviders} setProviders={setSystemProviders} />
               </div>
               <button 
                 type="submit" 
