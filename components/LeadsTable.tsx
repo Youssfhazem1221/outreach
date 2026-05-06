@@ -361,20 +361,17 @@ export function LeadsTable({
                       <span className="text-muted-foreground text-[10px]">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-2">
-                    <CustomSelect 
-                      value={lead.status}
-                      onChange={(val) => onStatusChange(lead.id, val)}
-                      options={[
-                        { value: "New", label: "New" },
-                        { value: "Contacted", label: "Contacted" },
-                        { value: "Replied", label: "Replied" },
-                        { value: "Call Booked", label: "Call Booked" },
-                        { value: "Closed", label: "Closed" },
-                        { value: "Not Interested", label: "Not Interested" },
-                      ]}
-                      className="w-28 text-[10px]"
-                    />
+                  <td className="px-3 py-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${
+                      lead.status === 'New' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                      lead.status === 'Contacted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                      lead.status === 'Replied' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                      lead.status === 'Call Booked' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      lead.status === 'Closed' ? 'bg-white/10 text-white/70 border-white/20' :
+                      'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                      {lead.status}
+                    </span>
                   </td>
                   {isAdmin && (
                     <td className="px-6 py-3">
