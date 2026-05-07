@@ -191,8 +191,16 @@ export function LeadEngine() {
 
       if (!response.ok) throw new Error(data.error || "Failed to fetch leads");
 
-      setResults(data.leads || []);
+      const allLeads = data.leads || [];
+      const newLeads = allLeads.filter((l: any) => !l.alreadyInCRM);
+      const duplicateCount = allLeads.length - newLeads.length;
+
+      setResults(newLeads);
       setSearchMeta(data.meta || null);
+
+      if (duplicateCount > 0) {
+        addNotification(`Filtered out ${duplicateCount} leads already in your CRM.`, "info");
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -387,13 +395,10 @@ export function LeadEngine() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {results.map((lead, i) => (
-                    <div key={lead.tempId || i} className={`bg-white/5 border p-4 rounded-2xl flex items-start justify-between group transition-all ${lead.alreadyInCRM ? 'border-amber-500/30 opacity-60' : 'border-white/10 hover:border-emerald-500/30'}`}>
+                    <div key={lead.tempId || i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-start justify-between group transition-all hover:border-emerald-500/30">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-white truncate">{lead.name}</h3>
-                          {lead.alreadyInCRM && (
-                            <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider whitespace-nowrap">In CRM</span>
-                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{lead.niche} · {lead.city}</p>
                         
@@ -425,27 +430,23 @@ export function LeadEngine() {
                         </div>
                       </div>
                       
-                      {!lead.alreadyInCRM ? (
-                        <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                          <button
-                            onClick={() => handleAcceptLead(lead)}
-                            disabled={isImporting === lead.tempId}
-                            className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-xl border border-emerald-500/20 transition-all active:scale-90"
-                            title="Accept & Add to CRM"
-                          >
-                            {isImporting === lead.tempId ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
-                          </button>
-                          <button
-                            onClick={() => setResults(prev => prev.filter(l => l.tempId !== lead.tempId))}
-                            className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 transition-all active:scale-90"
-                            title="Reject & Discard"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-amber-400/60 font-medium ml-2 whitespace-nowrap">Duplicate</div>
-                      )}
+                      <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                        <button
+                          onClick={() => handleAcceptLead(lead)}
+                          disabled={isImporting === lead.tempId}
+                          className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-xl border border-emerald-500/20 transition-all active:scale-90"
+                          title="Accept & Add to CRM"
+                        >
+                          {isImporting === lead.tempId ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
+                        </button>
+                        <button
+                          onClick={() => setResults(prev => prev.filter(l => l.tempId !== lead.tempId))}
+                          className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 transition-all active:scale-90"
+                          title="Reject & Discard"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

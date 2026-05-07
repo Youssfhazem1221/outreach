@@ -170,6 +170,48 @@ export function LeadsTable({
           )}
 
           <button 
+            onClick={async () => {
+              const seenPhones = new Set();
+              const seenEmails = new Set();
+              const dupIds: string[] = [];
+              
+              // Sort by date to keep oldest
+              const sorted = [...leads].sort((a, b) => {
+                const tA = a.createdAt?.toMillis?.() || 0;
+                const tB = b.createdAt?.toMillis?.() || 0;
+                return tA - tB;
+              });
+
+              sorted.forEach(l => {
+                const p = l.phone?.replace(/\D/g, "");
+                const e = l.email?.toLowerCase().trim();
+                let isDup = false;
+                if (p && p.length > 6) {
+                  if (seenPhones.has(p)) isDup = true;
+                  else seenPhones.add(p);
+                }
+                if (e) {
+                  if (seenEmails.has(e)) isDup = true;
+                  else seenEmails.add(e);
+                }
+                if (isDup) dupIds.push(l.id);
+              });
+
+              if (dupIds.length > 0) {
+                if (window.confirm(`Found ${dupIds.length} duplicate leads. Would you like to PERMANENTLY remove them from the database? This cannot be undone.`)) {
+                  onBulkDelete(dupIds);
+                  alert(`Successfully queued ${dupIds.length} duplicates for deletion.`);
+                }
+              } else {
+                alert("No duplicates found in your current lead list!");
+              }
+            }}
+            className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 rounded-xl transition-all text-[11px] font-bold text-red-400 active:scale-95"
+          >
+            <Trash2 size={14} /> Remove All Duplicates
+          </button>
+
+          <button 
             onClick={exportCSV}
             className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl transition-all text-xs font-medium active:scale-95"
           >
