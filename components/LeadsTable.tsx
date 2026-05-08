@@ -1,19 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
-import { Download, Search, Filter, ChevronDown, Tag, Trash2, Edit3, MoreHorizontal } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Download, Search, Filter, Tag, Trash2, Edit3 } from "lucide-react";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
+import { Lead, LabelRecord } from "@/types/lead";
+import { LEAD_STATUSES, getStatusStyle } from "@/constants/statuses";
 
 interface LeadsTableProps {
-  leads: any[];
-  onLeadClick: (lead: any) => void;
+  leads: Lead[];
+  onLeadClick: (lead: Lead) => void;
   onStatusChange: (leadId: string, newStatus: string) => void;
   onBulkDelete: (leadIds: string[]) => void;
   onBulkStatusChange: (leadIds: string[], newStatus: string) => void;
   onBulkNicheChange: (leadIds: string[], newNiche: string) => void;
   onBulkLabelAdd: (leadIds: string[], labelId: string) => void;
-  customLabels: any[];
+  customLabels: LabelRecord[];
   isAdmin?: boolean;
 }
 
@@ -39,6 +41,16 @@ export function LeadsTable({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isNicheModalOpen, setIsNicheModalOpen] = useState(false);
   const [newNicheValue, setNewNicheValue] = useState("");
+  // Dedup modal states
+  const [isDedupModalOpen, setIsDedupModalOpen] = useState(false);
+  const [dedupIds, setDedupIds] = useState<string[]>([]);
+
+  // Clear selection when filters change — prevents operating on invisible leads
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [searchTerm, statusFilter, nicheFilter, labelFilter, ownerFilter]);
+
+  const columnCount = isAdmin ? 10 : 9;
 
   const uniqueNiches = Array.from(new Set(leads.map(l => l.niche?.toLowerCase()).filter(Boolean)))
     .map(n => leads.find(l => l.niche?.toLowerCase() === n)?.niche)
@@ -51,7 +63,7 @@ export function LeadsTable({
                           lead.phone?.includes(searchTerm);
     const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
     const matchesNiche = nicheFilter === "All" || lead.niche?.toLowerCase() === nicheFilter.toLowerCase();
-    const matchesLabel = labelFilter === "All" || (lead.labels && lead.labels.some((l: any) => l.id === labelFilter));
+    const matchesLabel = labelFilter === "All" || (lead.labels && lead.labels.some((l: LabelRecord) => l.id === labelFilter));
     const matchesOwner = ownerFilter === "All" || lead.userEmail === ownerFilter;
     
     return matchesSearch && matchesStatus && matchesNiche && matchesLabel && matchesOwner;
@@ -97,26 +109,72 @@ export function LeadsTable({
     setSelectedIds([]);
   };
 
+  const handleDedupScan = () => {
+    const seenPhones = new Set<string>();
+    const seenEmails = new Set<string>();
+    const duplicateIds: string[] = [];
+    
+    // Sort by date to keep oldest
+    const sorted = [...leads].sort((a, b) => {
+      const tA = a.createdAt?.toMillis?.() || 0;
+      const tB = b.createdAt?.toMillis?.() || 0;
+      return tA - tB;
+    });
+
+    sorted.forEach(l => {
+      const p = l.phone?.replace(/\D/g, "");
+      const e = l.email?.toLowerCase().trim();
+      let isDup = false;
+      if (p && p.length > 6) {
+        if (seenPhones.has(p)) isDup = true;
+        else seenPhones.add(p);
+      }
+      if (e) {
+        if (seenEmails.has(e)) isDup = true;
+        else seenEmails.add(e);
+      }
+      if (isDup) duplicateIds.push(l.id);
+    });
+
+    setDedupIds(duplicateIds);
+    setIsDedupModalOpen(true);
+  };
+
+  const handleDedupConfirm = () => {
+    if (dedupIds.length > 0) {
+      onBulkDelete(dedupIds);
+    }
+    setIsDedupModalOpen(false);
+    setDedupIds([]);
+  };
+
   const exportCSV = () => {
     if (leads.length === 0) return;
     
-    // Get all unique keys from all leads to form headers
     const headers = ["name", "phone", "email", "website", "address", "city", "country", "niche", "decisionMaker", "status", "source", "userEmail"];
     
     const csvContent = [
       headers.join(","),
       ...filteredLeads.map(lead => 
-        headers.map(header => `"${(lead[header] || "").toString().replace(/"/g, '""')}"`).join(",")
+        headers.map(header => {
+          const value = ((lead as Record<string, unknown>)[header] || "").toString();
+          // Escape quotes and handle newlines for valid CSV
+          const escaped = value.replace(/"/g, '""').replace(/\n/g, ' ');
+          return `"${escaped}"`;
+        }).join(",")
       )
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    link.href = url;
     link.setAttribute("download", `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    // Revoke the object URL to free memory
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -170,42 +228,7 @@ export function LeadsTable({
           )}
 
           <button 
-            onClick={async () => {
-              const seenPhones = new Set();
-              const seenEmails = new Set();
-              const dupIds: string[] = [];
-              
-              // Sort by date to keep oldest
-              const sorted = [...leads].sort((a, b) => {
-                const tA = a.createdAt?.toMillis?.() || 0;
-                const tB = b.createdAt?.toMillis?.() || 0;
-                return tA - tB;
-              });
-
-              sorted.forEach(l => {
-                const p = l.phone?.replace(/\D/g, "");
-                const e = l.email?.toLowerCase().trim();
-                let isDup = false;
-                if (p && p.length > 6) {
-                  if (seenPhones.has(p)) isDup = true;
-                  else seenPhones.add(p);
-                }
-                if (e) {
-                  if (seenEmails.has(e)) isDup = true;
-                  else seenEmails.add(e);
-                }
-                if (isDup) dupIds.push(l.id);
-              });
-
-              if (dupIds.length > 0) {
-                if (window.confirm(`Found ${dupIds.length} duplicate leads. Would you like to PERMANENTLY remove them from the database? This cannot be undone.`)) {
-                  onBulkDelete(dupIds);
-                  alert(`Successfully queued ${dupIds.length} duplicates for deletion.`);
-                }
-              } else {
-                alert("No duplicates found in your current lead list!");
-              }
-            }}
+            onClick={handleDedupScan}
             className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 rounded-xl transition-all text-[11px] font-bold text-red-400 active:scale-95"
           >
             <Trash2 size={14} /> Remove All Duplicates
@@ -220,6 +243,7 @@ export function LeadsTable({
         </div>
       </div>
 
+      {/* Delete Confirmation Modal */}
       <CustomModal 
         isOpen={isDeleteModalOpen} 
         onClose={() => setIsDeleteModalOpen(false)}
@@ -234,6 +258,7 @@ export function LeadsTable({
         )}
       />
 
+      {/* Niche Update Modal */}
       <CustomModal 
         isOpen={isNicheModalOpen} 
         onClose={() => setIsNicheModalOpen(false)}
@@ -256,6 +281,31 @@ export function LeadsTable({
         />
       </CustomModal>
 
+      {/* Dedup Confirmation Modal — replaces window.confirm/alert */}
+      <CustomModal
+        isOpen={isDedupModalOpen}
+        onClose={() => { setIsDedupModalOpen(false); setDedupIds([]); }}
+        title="Remove Duplicates"
+        description={
+          dedupIds.length > 0
+            ? `Found ${dedupIds.length} duplicate leads (matched by phone or email). Would you like to permanently remove them? This cannot be undone.`
+            : "No duplicates found in your current lead list!"
+        }
+        variant={dedupIds.length > 0 ? "danger" : undefined}
+        footer={(
+          <>
+            <button onClick={() => { setIsDedupModalOpen(false); setDedupIds([]); }} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">
+              {dedupIds.length > 0 ? "Cancel" : "Close"}
+            </button>
+            {dedupIds.length > 0 && (
+              <button onClick={handleDedupConfirm} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">
+                Delete {dedupIds.length} Duplicates
+              </button>
+            )}
+          </>
+        )}
+      />
+
       <div className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
@@ -274,12 +324,7 @@ export function LeadsTable({
             onChange={setStatusFilter}
             options={[
               { value: "All", label: "All Statuses" },
-              { value: "New", label: "New" },
-              { value: "Contacted", label: "Contacted" },
-              { value: "Replied", label: "Replied" },
-              { value: "Call Booked", label: "Call Booked" },
-              { value: "Closed", label: "Closed" },
-              { value: "Not Interested", label: "Not Interested" },
+              ...LEAD_STATUSES.map(s => ({ value: s.value, label: s.label }))
             ]}
             className="w-40"
             icon={<Filter size={12} />}
@@ -345,95 +390,91 @@ export function LeadsTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {filteredLeads.map((lead) => (
-                <tr 
-                  key={lead.id} 
-                  onClick={() => onLeadClick(lead)}
-                  className={`hover:bg-white/5 transition-colors group cursor-pointer ${selectedIds.includes(lead.id) ? 'bg-emerald-500/5' : ''}`}
-                >
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedIds.includes(lead.id)}
-                      onChange={() => {}}
-                      onClick={(e) => toggleSelectLead(lead.id, e)}
-                      className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="font-semibold text-[13px] text-white">{lead.name}</div>
-                      {lead.source === "groq_simulated" && (
-                        <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider">Sim</span>
-                      )}
-                    </div>
-                    {lead.decisionMaker && <div className="text-[10px] text-muted-foreground">{lead.decisionMaker}</div>}
-                  </td>
-                  <td className="px-6 py-3">
-                    <div className="font-medium">{lead.phone || "—"}</div>
-                    {lead.email && <div className="text-[10px] text-muted-foreground">{lead.email}</div>}
-                  </td>
-                  <td className="px-6 py-3">
-                    <div>{lead.city || "—"}</div>
-                    {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
-                  </td>
-                  <td className="px-3 py-2">{lead.niche}</td>
-                  <td className="px-6 py-3">
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                      {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
-                        ? formatRelativeTime(lead.createdAt.toMillis())
-                        : "—"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3">
-                    {lead.labels && lead.labels.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {lead.labels.map((label: any) => (
-                          <span 
-                            key={label.id} 
-                            className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 whitespace-nowrap flex items-center gap-1"
-                            style={{ backgroundColor: `${label.color}15`, color: label.color }}
-                          >
-                            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
-                            {label.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-[10px]">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${
-                      lead.status === 'New' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                      lead.status === 'Contacted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                      lead.status === 'Replied' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                      lead.status === 'Call Booked' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      lead.status === 'Closed' ? 'bg-white/10 text-white/70 border-white/20' :
-                      'bg-red-500/10 text-red-400 border-red-500/20'
-                    }`}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  {isAdmin && (
-                    <td className="px-6 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-white">{lead.userName || "Unknown"}</span>
-                        <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
-                      </div>
+              {filteredLeads.map((lead) => {
+                const statusStyle = getStatusStyle(lead.status);
+                return (
+                  <tr 
+                    key={lead.id} 
+                    onClick={() => onLeadClick(lead)}
+                    className={`hover:bg-white/5 transition-colors group cursor-pointer ${selectedIds.includes(lead.id) ? 'bg-emerald-500/5' : ''}`}
+                  >
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(lead.id)}
+                        onChange={() => {}}
+                        onClick={(e) => toggleSelectLead(lead.id, e)}
+                        className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
+                      />
                     </td>
-                  )}
-                  <td className="px-3 py-2 text-right">
-                    <button className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                      View Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-[13px] text-white">{lead.name}</div>
+                        {lead.source === "groq_simulated" && (
+                          <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider">Sim</span>
+                        )}
+                      </div>
+                      {lead.decisionMaker && <div className="text-[10px] text-muted-foreground">{lead.decisionMaker}</div>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{lead.phone || "—"}</div>
+                      {lead.email && <div className="text-[10px] text-muted-foreground">{lead.email}</div>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div>{lead.city || "—"}</div>
+                      {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
+                    </td>
+                    <td className="px-3 py-2">{lead.niche}</td>
+                    <td className="px-3 py-2">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
+                          ? formatRelativeTime(lead.createdAt.toMillis())
+                          : "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {lead.labels && lead.labels.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {lead.labels.map((label: LabelRecord) => (
+                            <span 
+                              key={label.id} 
+                              className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 whitespace-nowrap flex items-center gap-1"
+                              style={{ backgroundColor: `${label.color}15`, color: label.color }}
+                            >
+                              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
+                              {label.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${statusStyle.bgClass} ${statusStyle.textClass} ${statusStyle.borderClass}`}>
+                        {lead.status}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="text-white">{lead.userName || "Unknown"}</span>
+                          <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
+                        </div>
+                      </td>
+                    )}
+                    <td className="px-3 py-2 text-right">
+                      <button className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               
               {filteredLeads.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                  <td colSpan={columnCount} className="px-6 py-12 text-center text-muted-foreground">
                     No leads found matching your criteria.
                   </td>
                 </tr>
@@ -462,13 +503,13 @@ export function LeadsTable({
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Status:</span>
             <div className="flex gap-1">
-              {["New", "Contacted", "Closed"].map(status => (
+              {LEAD_STATUSES.map(status => (
                 <button
-                  key={status}
-                  onClick={() => handleBulkStatus(status)}
+                  key={status.value}
+                  onClick={() => handleBulkStatus(status.value)}
                   className="px-3 py-1 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 border border-white/10 rounded-lg text-xs transition-all"
                 >
-                  {status}
+                  {status.label}
                 </button>
               ))}
             </div>
@@ -477,8 +518,9 @@ export function LeadsTable({
           <div className="h-4 w-px bg-white/10" />
 
           <div className="flex items-center gap-2">
+            {/* Opens the niche modal instead of calling the action directly */}
             <button
-              onClick={handleBulkNicheAction}
+              onClick={() => setIsNicheModalOpen(true)}
               className="px-3 py-1 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 border border-white/10 rounded-lg text-xs transition-all flex items-center gap-2"
             >
               <Filter size={12} /> Set Category
@@ -507,8 +549,9 @@ export function LeadsTable({
 
           <div className="h-4 w-px bg-white/10" />
 
+          {/* Opens the delete modal instead of deleting directly */}
           <button
-            onClick={handleBulkDeleteAction}
+            onClick={() => setIsDeleteModalOpen(true)}
             className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 transition-colors"
           >
             Delete

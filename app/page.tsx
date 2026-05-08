@@ -14,34 +14,17 @@ import { db } from "@/lib/firebaseClient";
 import { collection, query, onSnapshot, doc, updateDoc, getDoc, where } from "firebase/firestore";
 import { LogIn } from "lucide-react";
 import { motion } from "framer-motion";
+import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
 
-type ViewType = "pipeline" | "table" | "engine" | "settings" | "dashboard";
 
-type TimestampLike =
-  | { toMillis?: () => number }
-  | { seconds?: number; nanoseconds?: number }
-  | Date
-  | number
-  | string
-  | null
-  | undefined;
-
-type LabelRecord = { id: string; name: string; color: string };
-
-type LeadRecord = {
-  id: string;
-  createdAt?: TimestampLike;
-  labels?: Array<string | LabelRecord>;
-  status?: string;
-};
 
 export default function AppShell() {
   const { user, loading, role, signInWithGoogle } = useAuth();
   const router = useRouter();
   
-  const [currentView, setCurrentView] = useState<ViewType>("pipeline");
-  const [leads, setLeads] = useState<LeadRecord[]>([]);
-  const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
+  const [currentView, setCurrentView] = useState<"pipeline" | "table" | "engine" | "settings" | "dashboard">("pipeline");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [customLabels, setCustomLabels] = useState<LabelRecord[]>([]);
 
@@ -105,10 +88,10 @@ export default function AppShell() {
       : query(collection(db, "leads"), where("userId", "==", user.uid));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedLeads: LeadRecord[] = snapshot.docs.map((doc) => ({
+      const fetchedLeads = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as Omit<LeadRecord, "id">),
-      }));
+        ...doc.data(),
+      })) as Lead[];
       // Sort by creation date client-side to save on compound index requirements initially
       fetchedLeads.sort((a, b) => {
         const dateA = a.createdAt && typeof a.createdAt === "object" && "toMillis" in a.createdAt
@@ -119,7 +102,7 @@ export default function AppShell() {
           : 0;
         return dateB - dateA;
       });
-      setLeads(fetchedLeads as LeadRecord[]);
+      setLeads(fetchedLeads);
     }, (error) => {
       console.error("Firestore listener error:", error);
     });
@@ -139,11 +122,11 @@ export default function AppShell() {
           if (idOrObj && typeof idOrObj === "object" && "id" in idOrObj && "name" in idOrObj && "color" in idOrObj) {
             return idOrObj as LabelRecord;
           }
-          return idOrObj; // already an object
-        }) as LabelRecord[];
-        return { ...lead, labels: fullLabels };
+          return idOrObj as LabelRecord;
+        });
+        return { ...lead, labels: fullLabels } as Lead;
       }
-      return lead;
+      return lead as Lead;
     });
   }, [leads, customLabels]);
 
@@ -156,10 +139,10 @@ export default function AppShell() {
   const handleStatusChange = async (leadId: string, newStatus: string) => {
     // 1. Optimistic update
     const previousLeads = [...leads];
-    setLeads(leads.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+    setLeads(leads.map(l => l.id === leadId ? { ...l, status: newStatus as LeadStatus } : l));
     
     if (selectedLead && selectedLead.id === leadId) {
-      setSelectedLead({ ...selectedLead, status: newStatus });
+      setSelectedLead({ ...selectedLead, status: newStatus as LeadStatus });
     }
 
     try {
@@ -316,7 +299,7 @@ export default function AppShell() {
             isAdmin={role === "admin"}
           />
         )}
-        {currentView === "engine" && <LeadEngine />}
+        {currentView === "engine" && <LeadEngine customLabels={customLabels} />}
         {currentView === "settings" && <SettingsPanel />}
         {currentView === "dashboard" && <AnalyticsDashboard leads={hydratedLeads} />}
       </main>

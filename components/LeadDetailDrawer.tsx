@@ -8,9 +8,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebaseClient";
 import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
 
 interface LeadDetailDrawerProps {
-  lead: any | null;
+  lead: Lead | null;
   isOpen: boolean;
   onClose: () => void;
   onUpdateStatus: (id: string, newStatus: string) => void;
@@ -18,8 +19,8 @@ interface LeadDetailDrawerProps {
 
 export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateStatus }: LeadDetailDrawerProps) {
   const { user } = useAuth();
-  const [lead, setLead] = useState<any>(null);
-  const [globalLabels, setGlobalLabels] = useState<{id: string, name: string, color: string}[]>([]);
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [globalLabels, setGlobalLabels] = useState<LabelRecord[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,10 +68,10 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
   const toggleLeadLabel = async (label: {id: string, name: string, color: string}) => {
     if (!lead) return;
     const currentLabels = lead.labels || [];
-    const hasLabel = currentLabels.some((l: any) => l.id === label.id);
+    const hasLabel = currentLabels.some((l: LabelRecord) => l.id === label.id);
     try {
       const updatedLabels = hasLabel
-        ? currentLabels.filter((l: any) => l.id !== label.id)
+        ? currentLabels.filter((l: LabelRecord) => l.id !== label.id)
         : [...currentLabels, label];
       setLead({ ...lead, labels: updatedLabels });
       await updateDoc(doc(db, "leads", lead.id), { labels: updatedLabels });
@@ -80,7 +81,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
   };
 
   const handleFieldChange = (field: string, value: any) => {
-    setLead((prev: any) => ({ ...prev, [field]: value }));
+    setLead((prev: Lead | null) => prev ? ({ ...prev, [field]: value }) : null);
   };
 
   const handleSaveChanges = async () => {
@@ -131,9 +132,9 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
   const handleDeleteNote = async () => {
     if (!lead || !noteToDelete) return;
     try {
-      const updatedHistory = lead.history.filter((n: any) => n.id !== noteToDelete);
+      const updatedHistory = (lead.history || []).filter((n: any) => n.id !== noteToDelete);
       await updateDoc(doc(db, "leads", lead.id), { history: updatedHistory });
-      setLead((prev: any) => ({ ...prev, history: updatedHistory }));
+      setLead((prev: Lead | null) => prev ? ({ ...prev, history: updatedHistory }) : null);
       setNoteToDelete(null);
     } catch (e) {
       console.error("Failed to delete note", e);
@@ -240,7 +241,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
 
               {/* Labels */}
               <div className="flex flex-wrap gap-2 items-center relative" ref={dropdownRef}>
-                {(lead.labels || []).map((label: any) => (
+                {(lead.labels || []).map((label: LabelRecord) => (
                   <span
                     key={label.id}
                     className="text-xs px-2 py-1 rounded-md font-medium border border-white/10 flex items-center gap-1"
@@ -264,7 +265,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                     ) : (
                       <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
                         {globalLabels.map(label => {
-                          const isApplied = (lead.labels || []).some((l: any) => l.id === label.id);
+                          const isApplied = (lead.labels || []).some((l: LabelRecord) => l.id === label.id);
                           return (
                             <button
                               key={label.id}

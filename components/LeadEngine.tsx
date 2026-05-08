@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Globe, MapPin, Target, CheckCircle2, Tag, ChevronDown, Bookmark, Trash2, History, X, Mail, Star } from "lucide-react";
+import { Search, Loader2, Globe, MapPin, Target, CheckCircle2, Tag, Bookmark, Trash2, History, X, Mail, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth, db } from "@/lib/firebaseClient";
-import { doc, getDoc, collection, addDoc, query as fsQuery, where, onSnapshot, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, query as fsQuery, where, onSnapshot, deleteDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
+import { Lead, LabelRecord, SavedSearch, SearchMeta } from "@/types/lead";
 
-export function LeadEngine() {
+interface LeadEngineProps {
+  customLabels: LabelRecord[];
+}
+
+export function LeadEngine({ customLabels }: LeadEngineProps) {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
@@ -19,15 +24,14 @@ export function LeadEngine() {
   const [selectedLabelId, setSelectedLabelId] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<Partial<Lead>[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [labels, setLabels] = useState<{ id: string, name: string, color: string }[]>([]);
-  const [savedSearches, setSavedSearches] = useState<any[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [isSavingSearch, setIsSavingSearch] = useState(false);
   const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [notifications, setNotifications] = useState<{ id: string, message: string, type: "success" | "error" | "info" }[]>([]);
-  const [searchMeta, setSearchMeta] = useState<any>(null);
+  const [searchMeta, setSearchMeta] = useState<SearchMeta | null>(null);
   // Modal states
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalName, setSaveModalName] = useState("");
@@ -41,26 +45,14 @@ export function LeadEngine() {
     }, 3000);
   };
 
-  useEffect(() => {
-    const fetchLabels = async () => {
-      try {
-        const labelDoc = await getDoc(doc(db, "settings", "labels"));
-        if (labelDoc.exists()) {
-          setLabels(labelDoc.data().items || []);
-        }
-      } catch (err) {
-        console.error("Failed to load labels", err);
-      }
-    };
-    fetchLabels();
-  }, []);
+
 
   // Fetch Saved Searches
   useEffect(() => {
     if (!user) return;
     const q = fsQuery(collection(db, "saved_searches"), where("userId", "==", user.uid));
     const unsubscribe = onSnapshot(q, (snap) => {
-      setSavedSearches(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setSavedSearches(snap.docs.map(d => ({ id: d.id, ...d.data() } as SavedSearch)));
     });
     return () => unsubscribe();
   }, [user]);
@@ -86,7 +78,7 @@ export function LeadEngine() {
     }
   };
 
-  const loadSearch = (search: any) => {
+  const loadSearch = (search: SavedSearch) => {
     const p = search.params;
     setQuery(p.query || "");
     setLocation(p.location || "");
@@ -109,11 +101,10 @@ export function LeadEngine() {
     }
   };
 
-  const handleAcceptLead = async (lead: any) => {
+  const handleAcceptLead = async (lead: Partial<Lead>) => {
     if (!user) return;
-    setIsImporting(lead.tempId);
+    setIsImporting(lead.tempId || null);
     try {
-      const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
       await addDoc(collection(db, "leads"), {
         ...lead,
         userId: user.uid,
@@ -138,7 +129,6 @@ export function LeadEngine() {
     if (!user || results.length === 0) return;
     setIsBulkImporting(true);
     try {
-      const { writeBatch, collection, doc, serverTimestamp } = await import("firebase/firestore");
       const batch = writeBatch(db);
       const leadsRef = collection(db, "leads");
 
@@ -157,9 +147,9 @@ export function LeadEngine() {
       });
 
       await batch.commit();
-      const count = results.length;
+      const importedCount = results.length;
       setResults([]);
-      addNotification(`Imported ${count} leads successfully!`);
+      addNotification(`Imported ${importedCount} leads successfully!`);
     } catch (err) {
       console.error("Bulk import failed", err);
       addNotification("Bulk import failed.", "error");
@@ -191,8 +181,8 @@ export function LeadEngine() {
 
       if (!response.ok) throw new Error(data.error || "Failed to fetch leads");
 
-      const allLeads = data.leads || [];
-      const newLeads = allLeads.filter((l: any) => !l.alreadyInCRM);
+      const allLeads: Partial<Lead>[] = data.leads || [];
+      const newLeads = allLeads.filter((l) => !l.alreadyInCRM);
       const duplicateCount = allLeads.length - newLeads.length;
 
       setResults(newLeads);
@@ -201,8 +191,8 @@ export function LeadEngine() {
       if (duplicateCount > 0) {
         addNotification(`Filtered out ${duplicateCount} leads already in your CRM.`, "info");
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -217,15 +207,10 @@ export function LeadEngine() {
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
               <Target className="text-emerald-500" /> Lead Engine
             </h1>
-            <p className="text-muted-foreground">Find real businesses globally using Gemini 2.0 & Tavily Search.</p>
+            <p className="text-muted-foreground">Find real businesses globally using Gemini 2.0 &amp; Tavily Search.</p>
           </div>
           
-          <button
-            onClick={() => {}}
-            className="flex items-center gap-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl hover:bg-emerald-500/20 transition-all"
-          >
-            <History size={14} /> View Search History
-          </button>
+          {/* Removed dead "View Search History" button — was onClick={() => {}} */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -315,7 +300,7 @@ export function LeadEngine() {
                     onChange={setSelectedLabelId}
                     options={[
                       { value: "", label: "No Label" },
-                      ...labels.map(l => ({ value: l.id, label: l.name }))
+                      ...customLabels.map(l => ({ value: l.id, label: l.name }))
                     ]}
                     icon={<Tag size={14} />}
                   />
@@ -405,9 +390,9 @@ export function LeadEngine() {
                         {/* Star Rating */}
                         <div className="flex items-center gap-0.5 mt-1.5">
                           {[1, 2, 3, 4, 5].map(s => (
-                            <Star key={s} size={10} className={s <= lead.rating ? 'text-amber-400 fill-amber-400' : 'text-white/10'} />
+                            <Star key={s} size={10} className={s <= (lead.rating || 0) ? 'text-amber-400 fill-amber-400' : 'text-white/10'} />
                           ))}
-                          <span className="text-[9px] text-muted-foreground ml-1">{lead.rating}/5</span>
+                          <span className="text-[9px] text-muted-foreground ml-1">{lead.rating || 0}/5</span>
                         </div>
 
                         <div className="flex flex-wrap gap-2 mt-3">
@@ -435,14 +420,14 @@ export function LeadEngine() {
                           onClick={() => handleAcceptLead(lead)}
                           disabled={isImporting === lead.tempId}
                           className="p-2 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-xl border border-emerald-500/20 transition-all active:scale-90"
-                          title="Accept & Add to CRM"
+                          title="Accept &amp; Add to CRM"
                         >
                           {isImporting === lead.tempId ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
                         </button>
                         <button
                           onClick={() => setResults(prev => prev.filter(l => l.tempId !== lead.tempId))}
                           className="p-2 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded-xl border border-red-500/20 transition-all active:scale-90"
-                          title="Reject & Discard"
+                          title="Reject &amp; Discard"
                         >
                           <X size={14} />
                         </button>

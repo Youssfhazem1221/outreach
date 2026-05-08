@@ -21,17 +21,18 @@ import {
 } from "@dnd-kit/sortable";
 import { LeadCard } from "./LeadCard";
 import { useDroppable } from "@dnd-kit/core";
+import { Lead } from "@/types/lead";
 
 interface KanbanBoardProps {
-  leads: any[];
+  leads: Lead[];
   onStatusChange: (leadId: string, newStatus: string) => void;
-  onLeadClick: (lead: any) => void;
+  onLeadClick: (lead: Lead) => void;
   isAdmin?: boolean;
 }
 
 const COLUMNS = ["New", "Contacted", "Replied", "Call Booked", "Closed", "Not Interested"];
 
-function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; leads: any[]; onLeadClick: (lead: any) => void; isAdmin?: boolean }) {
+function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; leads: Lead[]; onLeadClick: (lead: Lead) => void; isAdmin?: boolean }) {
   const { setNodeRef } = useDroppable({
     id: title,
   });
@@ -55,7 +56,7 @@ function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; l
 }
 
 export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: KanbanBoardProps) {
-  const [activeLead, setActiveLead] = useState<any | null>(null);
+  const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -71,7 +72,7 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: Kan
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     const lead = leads.find((l) => l.id === active.id);
-    setActiveLead(lead);
+    setActiveLead(lead || null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {

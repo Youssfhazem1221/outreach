@@ -3,9 +3,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, MessageCircle, Globe } from "lucide-react";
+import { Lead, LabelRecord } from "@/types/lead";
 
 interface LeadCardProps {
-  lead: any;
+  lead: Lead;
   onClick: () => void;
   isAdmin?: boolean;
 }
@@ -79,7 +80,7 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
 
       {lead.labels && lead.labels.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
-          {lead.labels.map((label: any) => (
+          {lead.labels.map((label: LabelRecord) => (
             <span 
               key={label.id} 
               className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 flex items-center gap-1"
