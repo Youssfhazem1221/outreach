@@ -207,7 +207,7 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
               <Target className="text-emerald-500" /> Lead Engine
             </h1>
-            <p className="text-muted-foreground">Find real businesses globally using Gemini 2.0 &amp; Tavily Search.</p>
+            <p className="text-muted-foreground">Find real businesses globally using Tavily Multi-Pass Search.</p>
           </div>
           
           {/* Removed dead "View Search History" button — was onClick={() => {}} */}

@@ -119,9 +119,7 @@ export default function AppShell() {
             const found = customLabels.find(l => l.id === idOrObj);
             return found || { id: idOrObj, name: "Unknown Label", color: "#666666" };
           }
-          if (idOrObj && typeof idOrObj === "object" && "id" in idOrObj && "name" in idOrObj && "color" in idOrObj) {
-            return idOrObj as LabelRecord;
-          }
+          // If it's already an object, assume it's a LabelRecord
           return idOrObj as LabelRecord;
         });
         return { ...lead, labels: fullLabels } as Lead;

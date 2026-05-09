@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, MessageCircle, Globe } from "lucide-react";
 import { Lead, LabelRecord } from "@/types/lead";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface LeadCardProps {
   lead: Lead;
@@ -63,9 +64,6 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
       <div className="flex justify-between items-start mb-2">
         <div className="flex flex-col min-w-0">
           <h4 className="font-medium text-sm text-white line-clamp-1 pr-2">{lead.name}</h4>
-          {lead.source === 'groq_simulated' && (
-            <span className="text-[8px] text-amber-500 font-bold uppercase tracking-tighter">Simulated</span>
-          )}
         </div>
         {lead.rating && (
           <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-medium shrink-0">
@@ -124,15 +122,4 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
   );
 }
 
-function formatRelativeTime(timestamp: number) {
-  const diff = Date.now() - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
 
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return "Just now";
-}

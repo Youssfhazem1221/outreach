@@ -6,6 +6,7 @@ import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
 import { Lead, LabelRecord } from "@/types/lead";
 import { LEAD_STATUSES, getStatusStyle } from "@/constants/statuses";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -184,46 +185,10 @@ export function LeadsTable({
         <div>
           <h1 className="text-2xl font-bold mb-1 text-emerald-400">All Leads <span className="text-[10px] text-muted-foreground ml-2 px-2 py-0.5 bg-white/5 rounded-full font-mono border border-white/10 uppercase tracking-widest">Premium Build v2.1</span></h1>
           <p className="text-muted-foreground text-xs">Manage and export your complete lead database.</p>
-        </div>
-        <div className="flex gap-3">
+        </div>        <div className="flex gap-3">
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl animate-in slide-in-from-right-4 duration-300">
               <span className="text-xs font-medium text-emerald-400">{selectedIds.length} Selected</span>
-              <div className="h-4 w-px bg-white/10 mx-1" />
-              
-              <button 
-                onClick={() => setIsNicheModalOpen(true)}
-                className="p-1.5 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors"
-                title="Change Niche"
-              >
-                <Edit3 size={16} />
-              </button>
-              
-              <div className="relative group">
-                <button className="p-1.5 hover:bg-white/5 rounded-lg text-muted-foreground hover:text-white transition-colors">
-                  <Tag size={16} />
-                </button>
-                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-[#0A0A0A] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[150px]">
-                  {customLabels.map(label => (
-                    <button
-                      key={label.id}
-                      onClick={() => handleBulkLabelAction(label.id)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2"
-                    >
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: label.color }} />
-                      {label.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="p-1.5 hover:bg-white/5 rounded-lg text-red-400/70 hover:text-red-400 transition-colors"
-                title="Delete Selected"
-              >
-                <Trash2 size={16} />
-              </button>
             </div>
           )}
 
@@ -410,9 +375,6 @@ export function LeadsTable({
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <div className="font-semibold text-[13px] text-white">{lead.name}</div>
-                        {lead.source === "groq_simulated" && (
-                          <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.5 rounded uppercase font-bold tracking-wider">Sim</span>
-                        )}
                       </div>
                       {lead.decisionMaker && <div className="text-[10px] text-muted-foreground">{lead.decisionMaker}</div>}
                     </td>
@@ -570,15 +532,4 @@ export function LeadsTable({
   );
 }
 
-function formatRelativeTime(timestamp: number) {
-  const diff = Date.now() - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
 
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return "Just now";
-}
