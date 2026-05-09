@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Cairo } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -30,7 +31,9 @@ export default function RootLayout({
     <html lang="en" className={`dark ${inter.variable} ${cairo.variable}`}>
       <body className="antialiased font-sans bg-black text-white selection:bg-emerald-500/30">
         <AuthProvider>
-          {children}
+          <NotificationProvider>
+            {children}
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

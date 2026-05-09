@@ -44,6 +44,30 @@ export interface Lead {
   [key: string]: any;
 }
 
+export type UserRecord = {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  creationTime?: string;
+  lastSignInTime?: string;
+  role: string;
+};
+
+export type AIProvider = {
+  id: string;
+  name: string;
+  providerType: "openrouter" | "groq" | "openai" | "anthropic" | "google";
+  apiKey: string;
+  model: string;
+  isActive: boolean;
+};
+
+export interface ProviderSettings {
+  tavily: string;
+  ai_providers: AIProvider[];
+}
+
+
 export interface SavedSearch {
   id: string;
   userId: string;

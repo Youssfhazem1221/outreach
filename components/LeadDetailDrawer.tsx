@@ -9,6 +9,8 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebaseClient";
 import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
+import { useNotification } from "@/contexts/NotificationContext";
+import { formatDateTime, getTimestamp } from "@/lib/dates";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
@@ -19,6 +21,7 @@ interface LeadDetailDrawerProps {
 
 export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateStatus }: LeadDetailDrawerProps) {
   const { user } = useAuth();
+  const { notify } = useNotification();
   const [lead, setLead] = useState<Lead | null>(null);
   const [globalLabels, setGlobalLabels] = useState<LabelRecord[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
@@ -93,9 +96,10 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
         ...saveData,
         updatedAt: new Date(),
       });
+      notify("Lead profile updated successfully");
     } catch (e) {
       console.error("Save failed", e);
-      alert("Failed to save changes");
+      notify("Failed to save changes", "error");
     } finally {
       setIsSaving(false);
       setIsEditing(false);
@@ -119,11 +123,11 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
     };
     try {
       await updateDoc(doc(db, "leads", lead.id), { history: arrayUnion(noteEntry) });
-      // Removed local state update to prevent "adds twice" bug (let Firestore listener handle it)
       setNewNote("");
+      notify("Interaction logged");
     } catch (e) {
       console.error("Failed to add note", e);
-      alert("Failed to add note");
+      notify("Failed to add note", "error");
     } finally {
       setIsPostingNote(false);
     }
@@ -334,7 +338,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                             <span className="text-xs font-bold text-emerald-400/80">{item.author}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] text-muted-foreground">
-                                {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                {formatDateTime(item.timestamp)}
                               </span>
                               <button 
                                 onClick={() => setNoteToDelete(item.id)}
@@ -471,9 +475,7 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Added on:</span>
                   <span className="text-white/70">
-                    {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
-                      ? new Date(lead.createdAt.toMillis()).toLocaleString()
-                      : "N/A"}
+                    {formatDateTime(lead.createdAt)}
                   </span>
                 </div>
               </div>

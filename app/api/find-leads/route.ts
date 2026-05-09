@@ -333,18 +333,21 @@ export async function POST(req: Request) {
       .sort((a, b) => b.rating - a.rating)
       .slice(0, count || 10);
 
-    // ─── DB Deduplication (check existing leads) ──────────────────────
-
+    // ─── DB Deduplication (Optimized check) ──────────────────────────
+    // Avoid fetching ALL leads which causes OOM on large databases.
+    // Instead, we check the most recent 500 leads for overlapping identifiers.
     let existingPhones = new Set<string>();
     let existingEmails = new Set<string>();
 
     try {
-      const existingLeadsSnap = await adminDb
+      const recentLeadsSnap = await adminDb
         .collection("leads")
         .where("userId", "==", userId)
+        .orderBy("createdAt", "desc")
+        .limit(500)
         .get();
 
-      existingLeadsSnap.docs.forEach((doc) => {
+      recentLeadsSnap.docs.forEach((doc) => {
         const data = doc.data();
         if (data.phone && data.phone !== "[No Phone Found]") {
           existingPhones.add(data.phone.replace(/\D/g, ""));

@@ -8,6 +8,7 @@ import { doc, getDoc, collection, addDoc, query as fsQuery, where, onSnapshot, d
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
 import { Lead, LabelRecord, SavedSearch, SearchMeta } from "@/types/lead";
+import { useNotification } from "@/contexts/NotificationContext";
 
 interface LeadEngineProps {
   customLabels: LabelRecord[];
@@ -15,6 +16,7 @@ interface LeadEngineProps {
 
 export function LeadEngine({ customLabels }: LeadEngineProps) {
   const { user } = useAuth();
+  const { notify } = useNotification();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [country, setCountry] = useState("Egypt");
@@ -30,22 +32,11 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
   const [isSavingSearch, setIsSavingSearch] = useState(false);
   const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
-  const [notifications, setNotifications] = useState<{ id: string, message: string, type: "success" | "error" | "info" }[]>([]);
   const [searchMeta, setSearchMeta] = useState<SearchMeta | null>(null);
   // Modal states
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveModalName, setSaveModalName] = useState("");
   const [deleteSearchId, setDeleteSearchId] = useState<string | null>(null);
-
-  const addNotification = (message: string, type: "success" | "error" | "info" = "success") => {
-    const id = Math.random().toString(36).substring(7);
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 3000);
-  };
-
-
 
   // Fetch Saved Searches
   useEffect(() => {
@@ -67,12 +58,12 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
         params: { query, location, country, scope, offer, count, selectedLabelId },
         createdAt: serverTimestamp()
       });
-      addNotification("Search configuration bookmarked!");
+      notify("Search configuration bookmarked!");
       setSaveModalOpen(false);
       setSaveModalName("");
     } catch (err) {
       console.error("Failed to save search", err);
-      addNotification("Failed to save search.", "error");
+      notify("Failed to save search.", "error");
     } finally {
       setIsSavingSearch(false);
     }
@@ -93,7 +84,7 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
     if (!deleteSearchId) return;
     try {
       await deleteDoc(doc(db, "saved_searches", deleteSearchId));
-      addNotification("Saved search deleted.");
+      notify("Saved search deleted.");
     } catch (err) {
       console.error(err);
     } finally {
@@ -116,10 +107,10 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
         updatedAt: serverTimestamp()
       });
       setResults(prev => prev.filter(l => l.tempId !== lead.tempId));
-      addNotification(`Accepted: ${lead.name}`);
+      notify(`Accepted: ${lead.name}`);
     } catch (err) {
       console.error("Failed to accept lead", err);
-      addNotification("Failed to save lead.", "error");
+      notify("Failed to save lead.", "error");
     } finally {
       setIsImporting(null);
     }
@@ -149,10 +140,10 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
       await batch.commit();
       const importedCount = results.length;
       setResults([]);
-      addNotification(`Imported ${importedCount} leads successfully!`);
+      notify(`Imported ${importedCount} leads successfully!`);
     } catch (err) {
       console.error("Bulk import failed", err);
-      addNotification("Bulk import failed.", "error");
+      notify("Bulk import failed.", "error");
     } finally {
       setIsBulkImporting(false);
     }
@@ -189,7 +180,7 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
       setSearchMeta(data.meta || null);
 
       if (duplicateCount > 0) {
-        addNotification(`Filtered out ${duplicateCount} leads already in your CRM.`, "info");
+        notify(`Filtered out ${duplicateCount} leads already in your CRM.`, "info");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -529,23 +520,7 @@ export function LeadEngine({ customLabels }: LeadEngineProps) {
         )}
       />
 
-      {/* Notifications Portal */}
-      <div className="fixed bottom-8 right-8 z-[100] flex flex-col gap-3">
-        {notifications.map(n => (
-          <div 
-            key={n.id}
-            className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border animate-in slide-in-from-right-10 fade-in duration-300 ${
-              n.type === "success" ? "bg-emerald-500/90 border-emerald-400 text-white" :
-              n.type === "error" ? "bg-red-500/90 border-red-400 text-white" :
-              "bg-blue-500/90 border-blue-400 text-white"
-            }`}
-          >
-            {n.type === "success" && <CheckCircle2 size={18} />}
-            {n.type === "error" && <X size={18} />}
-            <span className="text-sm font-semibold">{n.message}</span>
-          </div>
-        ))}
-      </div>
+
     </div>
   );
 }

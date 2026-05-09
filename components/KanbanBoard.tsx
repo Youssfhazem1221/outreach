@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -32,19 +32,19 @@ interface KanbanBoardProps {
 
 const COLUMNS = ["New", "Contacted", "Replied", "Call Booked", "Closed", "Not Interested"];
 
-function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; leads: Lead[]; onLeadClick: (lead: Lead) => void; isAdmin?: boolean }) {
+const KanbanColumn = React.memo(({ title, leads, onLeadClick, isAdmin }: { title: string; leads: Lead[]; onLeadClick: (lead: Lead) => void; isAdmin?: boolean }) => {
   const { setNodeRef } = useDroppable({
     id: title,
   });
 
   return (
-    <div className="flex flex-col w-[260px] shrink-0 bg-white/5 rounded-2xl border border-white/10 overflow-hidden h-full">
-      <div className="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center">
-        <h3 className="font-semibold text-xs">{title}</h3>
-        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full text-muted-foreground">{leads.length}</span>
+    <div className="flex flex-col w-[280px] shrink-0 bg-white/5 rounded-[2rem] border border-white/10 overflow-hidden h-full shadow-xl">
+      <div className="p-5 border-b border-white/5 bg-white/[0.02] flex justify-between items-center">
+        <h3 className="font-bold text-xs uppercase tracking-widest text-muted-foreground">{title}</h3>
+        <span className="text-[10px] font-black bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full">{leads.length}</span>
       </div>
       
-      <div ref={setNodeRef} className="flex-1 p-3 overflow-y-auto min-h-[150px]">
+      <div ref={setNodeRef} className="flex-1 p-4 overflow-y-auto min-h-[200px] space-y-3">
         <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map((lead) => (
             <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} isAdmin={isAdmin} />
@@ -53,15 +53,25 @@ function KanbanColumn({ title, leads, onLeadClick, isAdmin }: { title: string; l
       </div>
     </div>
   );
-}
+});
+
+KanbanColumn.displayName = "KanbanColumn";
 
 export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: KanbanBoardProps) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
+  // Memoize grouped leads to prevent redundant filtering in render
+  const columnsData = useMemo(() => {
+    return COLUMNS.map(col => ({
+      title: col,
+      leads: leads.filter(l => l.status === col)
+    }));
+  }, [leads]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Avoid triggering drag on simple clicks
+        distance: 8, // Increased slightly to prevent accidental drags on clicks
       },
     }),
     useSensor(KeyboardSensor, {
@@ -87,11 +97,14 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: Kan
     const activeLeadData = leads.find((l) => l.id === leadId);
     if (!activeLeadData) return;
 
-    // Is it dropped over another card?
-    const overLeadData = leads.find((l) => l.id === overId);
-    
-    // The new status is either the status of the card we dropped over, or the id of the column we dropped into
-    const newStatus = overLeadData ? overLeadData.status : overId;
+    // Check if drop target is a column ID or another lead's ID
+    const isColumn = COLUMNS.includes(overId);
+    let newStatus = overId;
+
+    if (!isColumn) {
+      const overLead = leads.find(l => l.id === overId);
+      if (overLead) newStatus = overLead.status;
+    }
 
     if (activeLeadData.status !== newStatus) {
       onStatusChange(leadId, newStatus);
@@ -99,26 +112,26 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: Kan
   };
 
   return (
-    <div className="h-full flex gap-3 overflow-x-auto pb-4 p-4">
+    <div className="h-full flex gap-4 overflow-x-auto pb-4 p-6 selection:bg-emerald-500/20">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {COLUMNS.map((col) => (
+        {columnsData.map((col) => (
           <KanbanColumn
-            key={col}
-            title={col}
-            leads={leads.filter((l) => l.status === col)}
+            key={col.title}
+            title={col.title}
+            leads={col.leads}
             onLeadClick={onLeadClick}
             isAdmin={isAdmin}
           />
         ))}
 
-        <DragOverlay>
+        <DragOverlay zIndex={1000}>
           {activeLead ? (
-            <div className="rotate-2 scale-105 shadow-2xl cursor-grabbing">
+            <div className="rotate-2 scale-105 shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-grabbing">
               <LeadCard lead={activeLead} onClick={() => {}} isAdmin={isAdmin} />
             </div>
           ) : null}

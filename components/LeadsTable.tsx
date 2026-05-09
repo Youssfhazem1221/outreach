@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Download, Search, Filter, Tag, Trash2, Edit3 } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Download, Search, Filter, Tag, Trash2, Edit3, ChevronDown, Users, X } from "lucide-react";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
 import { Lead, LabelRecord } from "@/types/lead";
@@ -20,10 +20,101 @@ interface LeadsTableProps {
   isAdmin?: boolean;
 }
 
+// ─── Sub-Component: Table Row ────────────────────────────────────────────────
+
+interface LeadRowProps {
+  lead: Lead;
+  isSelected: boolean;
+  isAdmin: boolean;
+  onSelect: (id: string, e: React.MouseEvent) => void;
+  onClick: () => void;
+}
+
+const LeadRow = React.memo(({ lead, isSelected, isAdmin, onSelect, onClick }: LeadRowProps) => {
+  const statusStyle = getStatusStyle(lead.status);
+  
+  return (
+    <tr 
+      onClick={onClick}
+      className={`hover:bg-white/[0.03] transition-colors group cursor-pointer ${isSelected ? 'bg-emerald-500/5' : ''}`}
+    >
+      <td className="px-4 py-3" onClick={(e) => onSelect(lead.id, e)}>
+        <input 
+          type="checkbox" 
+          checked={isSelected}
+          onChange={() => {}} // Controlled via onClick on td
+          className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
+        />
+      </td>
+      <td className="px-4 py-3">
+        <div className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">{lead.name}</div>
+        {lead.decisionMaker && <div className="text-[10px] text-muted-foreground mt-0.5">{lead.decisionMaker}</div>}
+      </td>
+      <td className="px-4 py-3">
+        <div className="text-xs font-medium text-white/80">{lead.phone || "—"}</div>
+        {lead.email && <div className="text-[10px] text-muted-foreground mt-0.5">{lead.email}</div>}
+      </td>
+      <td className="px-4 py-3 text-xs">
+        <div>{lead.city || "—"}</div>
+        {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-xs px-2 py-0.5 bg-white/5 rounded-md border border-white/5">{lead.niche}</span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+          {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
+            ? formatRelativeTime(lead.createdAt.toMillis())
+            : "—"}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        {lead.labels && lead.labels.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {lead.labels.map((label: LabelRecord) => (
+              <span 
+                key={label.id} 
+                className="text-[9px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1.5"
+                style={{ backgroundColor: `${label.color}10`, color: label.color, borderColor: `${label.color}30` }}
+              >
+                <div className="w-1 h-1 rounded-full shadow-sm" style={{ backgroundColor: label.color }} />
+                {label.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-[10px]">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border uppercase tracking-wider ${statusStyle.bgClass} ${statusStyle.textClass} ${statusStyle.borderClass}`}>
+          {lead.status}
+        </span>
+      </td>
+      {isAdmin && (
+        <td className="px-4 py-3">
+          <div className="flex flex-col">
+            <span className="text-xs font-medium text-white">{lead.userName || "Unknown"}</span>
+            <span className="text-[9px] text-muted-foreground truncate max-w-[100px]">{lead.userEmail}</span>
+          </div>
+        </td>
+      )}
+      <td className="px-4 py-3 text-right">
+        <button className="text-emerald-400 hover:text-white font-bold text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all bg-emerald-500/10 px-3 py-1 rounded-lg">
+          Manage
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+LeadRow.displayName = "LeadRow";
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+
 export function LeadsTable({ 
   leads, 
   onLeadClick, 
-  onStatusChange, 
   onBulkDelete, 
   onBulkStatusChange,
   onBulkNicheChange,
@@ -31,96 +122,83 @@ export function LeadsTable({
   customLabels,
   isAdmin
 }: LeadsTableProps) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [nicheFilter, setNicheFilter] = useState("All");
-  const [labelFilter, setLabelFilter] = useState("All");
-  const [ownerFilter, setOwnerFilter] = useState("All");
+  // Filter States
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "All",
+    niche: "All",
+    label: "All",
+    owner: "All"
+  });
+  
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
-  // Modal states
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isNicheModalOpen, setIsNicheModalOpen] = useState(false);
+  // Modal States
+  const [modals, setModals] = useState({
+    delete: false,
+    niche: false,
+    dedup: false
+  });
+  
   const [newNicheValue, setNewNicheValue] = useState("");
-  // Dedup modal states
-  const [isDedupModalOpen, setIsDedupModalOpen] = useState(false);
   const [dedupIds, setDedupIds] = useState<string[]>([]);
 
-  // Clear selection when filters change — prevents operating on invisible leads
+  // Clear selection on filter change
   useEffect(() => {
     setSelectedIds([]);
-  }, [searchTerm, statusFilter, nicheFilter, labelFilter, ownerFilter]);
+  }, [filters]);
 
-  const columnCount = isAdmin ? 10 : 9;
+  // ─── Memoized Data ─────────────────────────────────────────────────────────
 
-  const uniqueNiches = Array.from(new Set(leads.map(l => l.niche?.toLowerCase()).filter(Boolean)))
-    .map(n => leads.find(l => l.niche?.toLowerCase() === n)?.niche)
-    .sort();
-  const uniqueOwners = Array.from(new Set(leads.map(l => l.userEmail).filter(Boolean))).sort();
-  
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          lead.niche?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          lead.phone?.includes(searchTerm);
-    const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
-    const matchesNiche = nicheFilter === "All" || lead.niche?.toLowerCase() === nicheFilter.toLowerCase();
-    const matchesLabel = labelFilter === "All" || (lead.labels && lead.labels.some((l: LabelRecord) => l.id === labelFilter));
-    const matchesOwner = ownerFilter === "All" || lead.userEmail === ownerFilter;
-    
-    return matchesSearch && matchesStatus && matchesNiche && matchesLabel && matchesOwner;
-  });
+  const uniqueNiches = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.niche?.toLowerCase()).filter(Boolean)))
+      .map(n => leads.find(l => l.niche?.toLowerCase() === n)?.niche)
+      .sort();
+  }, [leads]);
+
+  const uniqueOwners = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.userEmail).filter(Boolean))).sort();
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter(lead => {
+      const matchesSearch = !filters.search || 
+        lead.name?.toLowerCase().includes(filters.search.toLowerCase()) || 
+        lead.niche?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        lead.phone?.includes(filters.search);
+        
+      const matchesStatus = filters.status === "All" || lead.status === filters.status;
+      const matchesNiche = filters.niche === "All" || lead.niche?.toLowerCase() === filters.niche.toLowerCase();
+      const matchesLabel = filters.label === "All" || (lead.labels && lead.labels.some((l: LabelRecord) => l.id === filters.label));
+      const matchesOwner = filters.owner === "All" || lead.userEmail === filters.owner;
+      
+      return matchesSearch && matchesStatus && matchesNiche && matchesLabel && matchesOwner;
+    });
+  }, [leads, filters]);
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredLeads.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredLeads.map(l => l.id));
-    }
+    setSelectedIds(selectedIds.length === filteredLeads.length ? [] : filteredLeads.map(l => l.id));
   };
 
   const toggleSelectLead = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const handleBulkStatus = (status: string) => {
-    onBulkStatusChange(selectedIds, status);
-    setSelectedIds([]);
-  };
-
-  const handleBulkDeleteAction = () => {
-    onBulkDelete(selectedIds);
-    setSelectedIds([]);
-    setIsDeleteModalOpen(false);
-  };
-
-  const handleBulkNicheAction = () => {
-    if (newNicheValue) {
-      onBulkNicheChange(selectedIds, newNicheValue);
-      setSelectedIds([]);
-      setIsNicheModalOpen(false);
-      setNewNicheValue("");
-    }
-  };
-
-  const handleBulkLabelAction = (labelId: string) => {
-    onBulkLabelAdd(selectedIds, labelId);
+  const executeBulkAction = (action: () => void) => {
+    action();
     setSelectedIds([]);
   };
 
   const handleDedupScan = () => {
     const seenPhones = new Set<string>();
     const seenEmails = new Set<string>();
-    const duplicateIds: string[] = [];
+    const duplicates: string[] = [];
     
-    // Sort by date to keep oldest
-    const sorted = [...leads].sort((a, b) => {
-      const tA = a.createdAt?.toMillis?.() || 0;
-      const tB = b.createdAt?.toMillis?.() || 0;
-      return tA - tB;
-    });
+    // Oldest first to keep the original
+    const sorted = [...leads].sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0));
 
     sorted.forEach(l => {
       const p = l.phone?.replace(/\D/g, "");
@@ -134,310 +212,155 @@ export function LeadsTable({
         if (seenEmails.has(e)) isDup = true;
         else seenEmails.add(e);
       }
-      if (isDup) duplicateIds.push(l.id);
+      if (isDup) duplicates.push(l.id);
     });
 
-    setDedupIds(duplicateIds);
-    setIsDedupModalOpen(true);
-  };
-
-  const handleDedupConfirm = () => {
-    if (dedupIds.length > 0) {
-      onBulkDelete(dedupIds);
-    }
-    setIsDedupModalOpen(false);
-    setDedupIds([]);
+    setDedupIds(duplicates);
+    setModals(prev => ({ ...prev, dedup: true }));
   };
 
   const exportCSV = () => {
-    if (leads.length === 0) return;
-    
+    if (filteredLeads.length === 0) return;
     const headers = ["name", "phone", "email", "website", "address", "city", "country", "niche", "decisionMaker", "status", "source", "userEmail"];
-    
-    const csvContent = [
+    const csv = [
       headers.join(","),
-      ...filteredLeads.map(lead => 
-        headers.map(header => {
-          const value = ((lead as Record<string, unknown>)[header] || "").toString();
-          // Escape quotes and handle newlines for valid CSV
-          const escaped = value.replace(/"/g, '""').replace(/\n/g, ' ');
-          return `"${escaped}"`;
-        }).join(",")
-      )
+      ...filteredLeads.map(l => headers.map(h => `"${(l as any)[h]?.toString().replace(/"/g, '""').replace(/\n/g, ' ') || ""}"`).join(","))
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
+    link.download = `leads_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    document.body.removeChild(link);
-    // Revoke the object URL to free memory
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="p-6 h-full flex flex-col items-center">
-      <div className="w-full max-w-7xl flex flex-col h-full mx-auto">
-        <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold mb-1 text-emerald-400">All Leads <span className="text-[10px] text-muted-foreground ml-2 px-2 py-0.5 bg-white/5 rounded-full font-mono border border-white/10 uppercase tracking-widest">Premium Build v2.1</span></h1>
-          <p className="text-muted-foreground text-xs">Manage and export your complete lead database.</p>
-        </div>        <div className="flex gap-3">
-          {selectedIds.length > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl animate-in slide-in-from-right-4 duration-300">
-              <span className="text-xs font-medium text-emerald-400">{selectedIds.length} Selected</span>
-            </div>
-          )}
+  const colCount = isAdmin ? 10 : 9;
 
+  return (
+    <div className="p-8 h-full flex flex-col max-w-[1600px] mx-auto w-full space-y-6">
+      {/* Header & Main Actions */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
+            Lead Inventory
+            <span className="text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20 uppercase font-mono tracking-widest">v2.5 Stable</span>
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">Unified view of your global business pipeline.</p>
+        </div>
+        
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <button 
             onClick={handleDedupScan}
-            className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-4 py-2 rounded-xl transition-all text-[11px] font-bold text-red-400 active:scale-95"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-5 py-2.5 rounded-2xl transition-all text-xs font-bold text-red-400 active:scale-95"
           >
-            <Trash2 size={14} /> Remove All Duplicates
+            <Trash2 size={16} /> Cleanup Duplicates
           </button>
 
           <button 
             onClick={exportCSV}
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-xl transition-all text-xs font-medium active:scale-95"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-5 py-2.5 rounded-2xl transition-all text-xs font-bold text-white active:scale-95"
           >
-            <Download size={14} /> Export CSV
+            <Download size={16} /> Export Dataset
           </button>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <CustomModal 
-        isOpen={isDeleteModalOpen} 
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete Leads"
-        description={`Are you sure you want to delete ${selectedIds.length} leads? This action cannot be undone.`}
-        variant="danger"
-        footer={(
-          <>
-            <button onClick={() => setIsDeleteModalOpen(false)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
-            <button onClick={handleBulkDeleteAction} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">Delete Permanently</button>
-          </>
-        )}
-      />
-
-      {/* Niche Update Modal */}
-      <CustomModal 
-        isOpen={isNicheModalOpen} 
-        onClose={() => setIsNicheModalOpen(false)}
-        title="Update Niche"
-        description="Change the niche/category for all selected leads."
-        footer={(
-          <>
-            <button onClick={() => setIsNicheModalOpen(false)} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
-            <button onClick={handleBulkNicheAction} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors">Update Niche</button>
-          </>
-        )}
-      >
-        <input 
-          type="text"
-          placeholder="Enter new niche..."
-          value={newNicheValue}
-          onChange={(e) => setNewNicheValue(e.target.value)}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 outline-none focus:border-emerald-500 text-sm transition-all"
-          autoFocus
-        />
-      </CustomModal>
-
-      {/* Dedup Confirmation Modal — replaces window.confirm/alert */}
-      <CustomModal
-        isOpen={isDedupModalOpen}
-        onClose={() => { setIsDedupModalOpen(false); setDedupIds([]); }}
-        title="Remove Duplicates"
-        description={
-          dedupIds.length > 0
-            ? `Found ${dedupIds.length} duplicate leads (matched by phone or email). Would you like to permanently remove them? This cannot be undone.`
-            : "No duplicates found in your current lead list!"
-        }
-        variant={dedupIds.length > 0 ? "danger" : undefined}
-        footer={(
-          <>
-            <button onClick={() => { setIsDedupModalOpen(false); setDedupIds([]); }} className="px-4 py-2 text-xs font-medium text-white/70 hover:text-white transition-colors">
-              {dedupIds.length > 0 ? "Cancel" : "Close"}
-            </button>
-            {dedupIds.length > 0 && (
-              <button onClick={handleDedupConfirm} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">
-                Delete {dedupIds.length} Duplicates
-              </button>
-            )}
-          </>
-        )}
-      />
-
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
+      {/* Filter Toolbar */}
+      <div className="glass p-4 rounded-3xl border border-white/10 flex flex-wrap items-center gap-4 shadow-xl">
+        <div className="relative flex-1 min-w-[280px]">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input 
             type="text" 
-            placeholder="Search leads..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-1.5 outline-none focus:border-emerald-500 text-xs transition-all"
+            placeholder="Search names, niches, or numbers..." 
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="w-full bg-black/40 border border-white/5 rounded-2xl pl-12 pr-4 py-3 outline-none focus:border-emerald-500 text-sm transition-all placeholder:text-muted-foreground/50"
           />
         </div>
         
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3">
           <CustomSelect 
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { value: "All", label: "All Statuses" },
-              ...LEAD_STATUSES.map(s => ({ value: s.value, label: s.label }))
-            ]}
-            className="w-40"
-            icon={<Filter size={12} />}
+            value={filters.status}
+            onChange={(val) => setFilters({ ...filters, status: val })}
+            options={[{ value: "All", label: "All Statuses" }, ...LEAD_STATUSES.map(s => ({ value: s.value, label: s.label }))]}
+            className="w-44"
+            icon={<Filter size={14} />}
           />
 
           <CustomSelect 
-            value={nicheFilter}
-            onChange={setNicheFilter}
-            options={[
-              { value: "All", label: "All Niches" },
-              ...uniqueNiches.map(n => ({ value: n as string, label: n as string }))
-            ]}
-            className="w-40"
+            value={filters.niche}
+            onChange={(val) => setFilters({ ...filters, niche: val })}
+            options={[{ value: "All", label: "All Categories" }, ...uniqueNiches.map(n => ({ value: n as string, label: n as string }))]}
+            className="w-44"
           />
 
           <CustomSelect 
-            value={labelFilter}
-            onChange={setLabelFilter}
-            options={[
-              { value: "All", label: "All Labels" },
-              ...customLabels.map(l => ({ value: l.id, label: l.name }))
-            ]}
-            className="w-40"
-            icon={<Tag size={12} />}
+            value={filters.label}
+            onChange={(val) => setFilters({ ...filters, label: val })}
+            options={[{ value: "All", label: "All Labels" }, ...customLabels.map(l => ({ value: l.id, label: l.name }))]}
+            className="w-44"
+            icon={<Tag size={14} />}
           />
 
           {isAdmin && (
             <CustomSelect 
-              value={ownerFilter}
-              onChange={setOwnerFilter}
-              options={[
-                { value: "All", label: "All Owners" },
-                ...uniqueOwners.map(o => ({ value: o as string, label: o as string }))
-              ]}
-              className="w-48"
+              value={filters.owner}
+              onChange={(val) => setFilters({ ...filters, owner: val })}
+              options={[{ value: "All", label: "All Owners" }, ...uniqueOwners.map(o => ({ value: o as string, label: o as string }))]}
+              className="w-52"
+              icon={<Users size={14} />}
             />
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden border border-white/10 rounded-xl bg-white/5 w-full">
-        <div className="overflow-auto h-full relative">
-          <table className="w-full text-xs text-left">
-            <thead className="text-[10px] uppercase bg-black/40 text-muted-foreground sticky top-0 z-10 backdrop-blur-md">
-              <tr>
-                <th className="px-3 py-1.5 w-10">
+      {/* Table Content */}
+      <div className="flex-1 overflow-hidden glass rounded-3xl border border-white/10 shadow-2xl flex flex-col">
+        <div className="overflow-auto h-full scrollbar-thin scrollbar-thumb-white/10">
+          <table className="w-full text-left border-separate border-spacing-0">
+            <thead className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl">
+              <tr className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">
+                <th className="px-4 py-5 w-12 border-b border-white/5">
                   <input 
                     type="checkbox" 
                     checked={selectedIds.length > 0 && selectedIds.length === filteredLeads.length}
                     onChange={toggleSelectAll}
-                    className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
+                    className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                   />
                 </th>
-                <th className="px-3 py-1.5 font-semibold">Name</th>
-                <th className="px-3 py-1.5 font-semibold">Phone / Email</th>
-                <th className="px-3 py-1.5 font-semibold">Location</th>
-                <th className="px-3 py-1.5 font-semibold">Niche</th>
-                <th className="px-3 py-1.5 font-semibold">Added</th>
-                <th className="px-3 py-1.5 font-semibold">Labels</th>
-                <th className="px-3 py-1.5 font-semibold">Status</th>
-                {isAdmin && <th className="px-3 py-1.5 font-semibold">Owner</th>}
-                <th className="px-3 py-1.5 font-semibold text-right">Actions</th>
+                <th className="px-4 py-5 border-b border-white/5">Company</th>
+                <th className="px-4 py-5 border-b border-white/5">Contact Details</th>
+                <th className="px-4 py-5 border-b border-white/5">Location</th>
+                <th className="px-4 py-5 border-b border-white/5">Category</th>
+                <th className="px-4 py-5 border-b border-white/5">Ingested</th>
+                <th className="px-4 py-5 border-b border-white/5">Labels</th>
+                <th className="px-4 py-5 border-b border-white/5">Status</th>
+                {isAdmin && <th className="px-4 py-5 border-b border-white/5">Assigned To</th>}
+                <th className="px-4 py-5 border-b border-white/5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
-              {filteredLeads.map((lead) => {
-                const statusStyle = getStatusStyle(lead.status);
-                return (
-                  <tr 
-                    key={lead.id} 
-                    onClick={() => onLeadClick(lead)}
-                    className={`hover:bg-white/5 transition-colors group cursor-pointer ${selectedIds.includes(lead.id) ? 'bg-emerald-500/5' : ''}`}
-                  >
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(lead.id)}
-                        onChange={() => {}}
-                        onClick={(e) => toggleSelectLead(lead.id, e)}
-                        className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold text-[13px] text-white">{lead.name}</div>
-                      </div>
-                      {lead.decisionMaker && <div className="text-[10px] text-muted-foreground">{lead.decisionMaker}</div>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{lead.phone || "—"}</div>
-                      {lead.email && <div className="text-[10px] text-muted-foreground">{lead.email}</div>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div>{lead.city || "—"}</div>
-                      {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
-                    </td>
-                    <td className="px-3 py-2">{lead.niche}</td>
-                    <td className="px-3 py-2">
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
-                          ? formatRelativeTime(lead.createdAt.toMillis())
-                          : "—"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      {lead.labels && lead.labels.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {lead.labels.map((label: LabelRecord) => (
-                            <span 
-                              key={label.id} 
-                              className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 whitespace-nowrap flex items-center gap-1"
-                              style={{ backgroundColor: `${label.color}15`, color: label.color }}
-                            >
-                              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
-                              {label.name}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-[10px]">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${statusStyle.bgClass} ${statusStyle.textClass} ${statusStyle.borderClass}`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    {isAdmin && (
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col">
-                          <span className="text-white">{lead.userName || "Unknown"}</span>
-                          <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{lead.userEmail || lead.userId?.substring(0, 8)}</span>
-                        </div>
-                      </td>
-                    )}
-                    <td className="px-3 py-2 text-right">
-                      <button className="text-emerald-400 hover:text-emerald-300 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+            <tbody className="divide-y divide-white/[0.03]">
+              {filteredLeads.map((lead) => (
+                <LeadRow 
+                  key={lead.id}
+                  lead={lead}
+                  isAdmin={!!isAdmin}
+                  isSelected={selectedIds.includes(lead.id)}
+                  onSelect={toggleSelectLead}
+                  onClick={() => onLeadClick(lead)}
+                />
+              ))}
               
               {filteredLeads.length === 0 && (
                 <tr>
-                  <td colSpan={columnCount} className="px-6 py-12 text-center text-muted-foreground">
-                    No leads found matching your criteria.
+                  <td colSpan={colCount} className="px-6 py-32 text-center">
+                    <div className="flex flex-col items-center opacity-20">
+                      <Search size={48} className="mb-4" />
+                      <p className="text-xl font-bold italic">No matches found</p>
+                      <p className="text-sm">Try broadening your filters or clearing the search box.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -446,62 +369,69 @@ export function LeadsTable({
         </div>
       </div>
       
-      <div className="w-full max-w-6xl mt-4 text-[10px] text-muted-foreground flex justify-between items-center">
-        <span>Showing {filteredLeads.length} leads</span>
-        {selectedIds.length > 0 && (
-          <span className="text-emerald-400 font-medium">{selectedIds.length} leads selected</span>
-        )}
+      {/* Footer Info */}
+      <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-widest text-muted-foreground/50 px-4">
+        <div className="flex items-center gap-4">
+          <span>Inventory Size: {filteredLeads.length} Leads</span>
+          {selectedIds.length > 0 && <span className="text-emerald-500">Selected: {selectedIds.length}</span>}
+        </div>
+        <span>Real-time Sync Active</span>
       </div>
 
-      {/* Bulk Action Bar */}
+      {/* Floating Bulk Action Bar */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 glass border border-emerald-500/30 px-6 py-3 rounded-2xl shadow-2xl z-50 flex items-center gap-6 animate-in slide-in-from-bottom-4">
-          <div className="text-sm font-medium">
-            <span className="text-emerald-400">{selectedIds.length}</span> leads selected
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 glass border border-emerald-500/40 px-8 py-4 rounded-3xl shadow-[0_20px_50px_rgba(16,185,129,0.2)] z-[100] flex items-center gap-8 animate-in slide-in-from-bottom-8 duration-500 cubic-bezier(0.16, 1, 0.3, 1)">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-emerald-500/30">
+              {selectedIds.length}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs font-black uppercase tracking-tighter text-white">Leads Ready</span>
+              <span className="text-[10px] text-emerald-400 font-bold uppercase">Bulk Control Active</span>
+            </div>
           </div>
           
-          <div className="h-4 w-px bg-white/10" />
+          <div className="h-10 w-px bg-white/10" />
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Status:</span>
-            <div className="flex gap-1">
-              {LEAD_STATUSES.map(status => (
+            <span className="text-[10px] font-black text-muted-foreground uppercase mr-2">Status</span>
+            <div className="flex gap-1.5">
+              {LEAD_STATUSES.map(s => (
                 <button
-                  key={status.value}
-                  onClick={() => handleBulkStatus(status.value)}
-                  className="px-3 py-1 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 border border-white/10 rounded-lg text-xs transition-all"
+                  key={s.value}
+                  onClick={() => executeBulkAction(() => onBulkStatusChange(selectedIds, s.value))}
+                  className="px-4 py-2 bg-white/5 hover:bg-emerald-500 text-white border border-white/10 rounded-xl text-[10px] font-bold uppercase transition-all active:scale-90"
                 >
-                  {status.label}
+                  {s.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="h-4 w-px bg-white/10" />
+          <div className="h-10 w-px bg-white/10" />
 
-          <div className="flex items-center gap-2">
-            {/* Opens the niche modal instead of calling the action directly */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsNicheModalOpen(true)}
-              className="px-3 py-1 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 border border-white/10 rounded-lg text-xs transition-all flex items-center gap-2"
+              onClick={() => setModals({ ...modals, niche: true })}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center gap-2"
             >
-              <Filter size={12} /> Set Category
+              <Edit3 size={14} /> Category
             </button>
 
             {customLabels.length > 0 && (
               <div className="relative group">
-                <button className="px-3 py-1 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 border border-white/10 rounded-lg text-xs transition-all flex items-center gap-2">
-                  <Tag size={12} /> Add Label
+                <button className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center gap-2">
+                  <Tag size={14} /> Label
                 </button>
-                <div className="absolute bottom-full mb-2 left-0 hidden group-hover:block w-48 bg-black/90 border border-white/10 rounded-xl p-1 shadow-2xl">
-                  {customLabels.map(label => (
+                <div className="absolute bottom-full mb-4 left-0 hidden group-hover:block w-56 bg-[#0A0A0A] border border-white/10 rounded-2xl p-2 shadow-2xl animate-in fade-in slide-in-from-bottom-2">
+                  {customLabels.map(l => (
                     <button
-                      key={label.id}
-                      onClick={() => handleBulkLabelAction(label.id)}
-                      className="w-full text-left px-3 py-2 hover:bg-white/5 rounded-lg text-xs flex items-center gap-2"
+                      key={l.id}
+                      onClick={() => executeBulkAction(() => onBulkLabelAdd(selectedIds, l.id))}
+                      className="w-full text-left px-4 py-2.5 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase flex items-center gap-3 transition-colors"
                     >
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: label.color }} />
-                      {label.name}
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                      {l.name}
                     </button>
                   ))}
                 </div>
@@ -509,27 +439,84 @@ export function LeadsTable({
             )}
           </div>
 
-          <div className="h-4 w-px bg-white/10" />
+          <div className="h-10 w-px bg-white/10" />
 
-          {/* Opens the delete modal instead of deleting directly */}
           <button
-            onClick={() => setIsDeleteModalOpen(true)}
-            className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 transition-colors"
+            onClick={() => setModals({ ...modals, delete: true })}
+            className="px-4 py-2 bg-red-500/10 hover:bg-red-500 text-white border border-red-500/20 rounded-xl text-[10px] font-bold uppercase transition-all active:scale-90"
           >
-            Delete
+            Discard
           </button>
 
           <button
             onClick={() => setSelectedIds([])}
-            className="text-xs text-muted-foreground hover:text-white transition-colors"
+            className="p-2 text-muted-foreground hover:text-white transition-colors"
           >
-            Cancel
+            <X size={18} />
           </button>
         </div>
       )}
-      </div>
+
+      {/* Modals */}
+      <CustomModal 
+        isOpen={modals.delete} 
+        onClose={() => setModals({ ...modals, delete: false })}
+        title="Wipe Selected Data"
+        description={`You are about to permanently delete ${selectedIds.length} leads. This action is destructive and cannot be reversed.`}
+        variant="danger"
+        footer={(
+          <div className="flex gap-3">
+            <button onClick={() => setModals({ ...modals, delete: false })} className="px-5 py-2.5 text-xs font-bold uppercase bg-white/5 hover:bg-white/10 rounded-xl transition-all">Abort</button>
+            <button onClick={() => executeBulkAction(() => { onBulkDelete(selectedIds); setModals({ ...modals, delete: false }); })} className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold uppercase transition-all">Confirm Wipe</button>
+          </div>
+        )}
+      />
+
+      <CustomModal 
+        isOpen={modals.niche} 
+        onClose={() => setModals({ ...modals, niche: false })}
+        title="Batch Categorization"
+        description="Assign a new niche or industry tag to all selected records."
+        footer={(
+          <div className="flex gap-3">
+            <button onClick={() => setModals({ ...modals, niche: false })} className="px-5 py-2.5 text-xs font-bold uppercase bg-white/5 hover:bg-white/10 rounded-xl transition-all">Cancel</button>
+            <button onClick={() => executeBulkAction(() => { onBulkNicheChange(selectedIds, newNicheValue); setModals({ ...modals, niche: false }); setNewNicheValue(""); })} className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase transition-all">Apply to Batch</button>
+          </div>
+        )}
+      >
+        <input 
+          type="text"
+          placeholder="New Category Name..."
+          value={newNicheValue}
+          onChange={(e) => setNewNicheValue(e.target.value)}
+          className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 outline-none focus:border-emerald-500 text-sm transition-all"
+          autoFocus
+        />
+      </CustomModal>
+
+      <CustomModal
+        isOpen={modals.dedup}
+        onClose={() => { setModals({ ...modals, dedup: false }); setDedupIds([]); }}
+        title="Deduplication Engine"
+        description={
+          dedupIds.length > 0
+            ? `Our engine identified ${dedupIds.length} redundant leads sharing the same contact vectors. Should we purge them?`
+            : "System clean. No duplicates found in active inventory."
+        }
+        variant={dedupIds.length > 0 ? "danger" : undefined}
+        footer={(
+          <div className="flex gap-3">
+            <button onClick={() => { setModals({ ...modals, dedup: false }); setDedupIds([]); }} className="px-5 py-2.5 text-xs font-bold uppercase bg-white/5 hover:bg-white/10 rounded-xl transition-all">
+              {dedupIds.length > 0 ? "Keep All" : "Close"}
+            </button>
+            {dedupIds.length > 0 && (
+              <button onClick={() => executeBulkAction(() => { onBulkDelete(dedupIds); setModals({ ...modals, dedup: false }); setDedupIds([]); })} className="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-bold uppercase transition-all">
+                Purge {dedupIds.length} Records
+              </button>
+            )}
+          </div>
+        )}
+      />
     </div>
   );
 }
-
-

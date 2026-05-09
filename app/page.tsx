@@ -11,15 +11,17 @@ import { SettingsPanel } from "@/components/SettingsPanel";
 import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { db } from "@/lib/firebaseClient";
-import { collection, query, onSnapshot, doc, updateDoc, getDoc, where } from "firebase/firestore";
-import { LogIn } from "lucide-react";
+import { collection, query, onSnapshot, doc, updateDoc, getDoc, where, writeBatch, arrayUnion } from "firebase/firestore";
+import { LogIn, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
+import { useNotification } from "@/contexts/NotificationContext";
 
 
 
 export default function AppShell() {
   const { user, loading, role, signInWithGoogle } = useAuth();
+  const { notify } = useNotification();
   const router = useRouter();
   
   const [currentView, setCurrentView] = useState<"pipeline" | "table" | "engine" | "settings" | "dashboard">("pipeline");
@@ -147,77 +149,42 @@ export default function AppShell() {
       // 2. Network request
       const leadRef = doc(db, "leads", leadId);
       await updateDoc(leadRef, { status: newStatus });
+      notify(`Status updated to ${newStatus}`);
     } catch (error) {
       console.error("Failed to update status", error);
       // 3. Revert on failure
       setLeads(previousLeads);
-      alert("Failed to update status. Reverting.");
+      notify("Failed to update status. Connection lost.", "error");
     }
   };
 
-  // Bulk Actions
-  const handleBulkStatusChange = async (leadIds: string[], newStatus: string) => {
+  // Bulk Actions Unified Handler
+  const executeBulk = async (leadIds: string[], operation: (batch: any, ref: any) => void, successMsg: string) => {
     try {
-      const { writeBatch, doc } = await import("firebase/firestore");
       const batch = writeBatch(db);
       leadIds.forEach(id => {
         const ref = doc(db, "leads", id);
-        batch.update(ref, { status: newStatus, updatedAt: new Date() });
+        operation(batch, ref);
       });
       await batch.commit();
+      notify(successMsg);
     } catch (error) {
-      console.error("Bulk status update failed", error);
-      alert("Failed to update some leads.");
+      console.error("Bulk action failed", error);
+      notify("System error: Bulk action incomplete", "error");
     }
   };
 
-  const handleBulkDelete = async (leadIds: string[]) => {
-    try {
-      const { writeBatch, doc } = await import("firebase/firestore");
-      const batch = writeBatch(db);
-      leadIds.forEach(id => {
-        const ref = doc(db, "leads", id);
-        batch.delete(ref);
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error("Bulk delete failed", error);
-      alert("Failed to delete some leads.");
-    }
-  };
+  const handleBulkStatusChange = (leadIds: string[], newStatus: string) => 
+    executeBulk(leadIds, (b, r) => b.update(r, { status: newStatus, updatedAt: new Date() }), `Updated ${leadIds.length} leads to ${newStatus}`);
 
-  const handleBulkNicheChange = async (leadIds: string[], newNiche: string) => {
-    try {
-      const { writeBatch, doc } = await import("firebase/firestore");
-      const batch = writeBatch(db);
-      leadIds.forEach(id => {
-        const ref = doc(db, "leads", id);
-        batch.update(ref, { niche: newNiche, updatedAt: new Date() });
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error("Bulk niche update failed", error);
-      alert("Failed to update niche.");
-    }
-  };
+  const handleBulkDelete = (leadIds: string[]) => 
+    executeBulk(leadIds, (b, r) => b.delete(r), `Permanently removed ${leadIds.length} records`);
 
-  const handleBulkLabelAdd = async (leadIds: string[], labelId: string) => {
-    try {
-      const { writeBatch, doc, arrayUnion } = await import("firebase/firestore");
-      const batch = writeBatch(db);
-      leadIds.forEach(id => {
-        const ref = doc(db, "leads", id);
-        batch.update(ref, { 
-          labels: arrayUnion(labelId),
-          updatedAt: new Date() 
-        });
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error("Bulk label update failed", error);
-      alert("Failed to add labels.");
-    }
-  };
+  const handleBulkNicheChange = (leadIds: string[], newNiche: string) => 
+    executeBulk(leadIds, (b, r) => b.update(r, { niche: newNiche, updatedAt: new Date() }), `Re-categorized ${leadIds.length} leads`);
+
+  const handleBulkLabelAdd = (leadIds: string[], labelId: string) => 
+    executeBulk(leadIds, (b, r) => b.update(r, { labels: arrayUnion(labelId), updatedAt: new Date() }), "Labels applied successfully");
 
   if (loading || !user) {
     return (

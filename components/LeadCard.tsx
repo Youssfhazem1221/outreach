@@ -4,7 +4,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, MessageCircle, Globe } from "lucide-react";
 import { Lead, LabelRecord } from "@/types/lead";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/dates";
+import React from "react";
 
 interface LeadCardProps {
   lead: Lead;
@@ -12,7 +13,7 @@ interface LeadCardProps {
   isAdmin?: boolean;
 }
 
-export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
+function LeadCardComponent({ lead, onClick, isAdmin }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
     data: {
@@ -29,10 +30,8 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
   const getChannelIcon = (channel: string) => {
     switch (channel?.toLowerCase()) {
       case "whatsapp": return <MessageCircle size={14} />;
-      case "instagram": return <Globe size={14} />;
-      case "linkedin": return <Globe size={14} />;
       case "email": return <Mail size={14} />;
-      default: return <Phone size={14} />;
+      default: return <Globe size={14} />;
     }
   };
 
@@ -112,14 +111,14 @@ export function LeadCard({ lead, onClick, isAdmin }: LeadCardProps) {
             </div>
           )}
           <span className="text-[9px] text-muted-foreground/60 italic">
-            {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
-              ? formatRelativeTime(lead.createdAt.toMillis())
-              : ""}
+            {formatRelativeTime(lead.createdAt)}
           </span>
         </div>
       </div>
     </div>
   );
 }
+
+export const LeadCard = React.memo(LeadCardComponent);
 
 
