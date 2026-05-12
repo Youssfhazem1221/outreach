@@ -141,7 +141,10 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
   const nicheData = useMemo(() => {
     const counts: Record<string, number> = {};
     leads.forEach((lead) => {
-      const niche = normalizeText(lead.niche, "Unknown");
+      let niche = normalizeText(lead.niche, "Unknown");
+      if (niche !== "Unknown") {
+        niche = niche.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      }
       counts[niche] = (counts[niche] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([niche, count]) => ({ niche, count }));
@@ -167,7 +170,10 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
   const cityData = useMemo(() => {
     const counts: Record<string, number> = {};
     leads.forEach((lead) => {
-      const city = normalizeText(lead.city, "Unknown");
+      let city = normalizeText(lead.city, "Unknown");
+      if (city !== "Unknown") {
+        city = city.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      }
       counts[city] = (counts[city] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([city, count], index) => ({ city, count, rank: index + 1 }));
