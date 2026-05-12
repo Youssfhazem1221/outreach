@@ -5,18 +5,22 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/Sidebar";
 import { KanbanBoard } from "@/components/KanbanBoard";
-import { LeadsTable } from "@/components/LeadsTable";
-import { LeadEngine } from "@/components/LeadEngine";
-import { SettingsPanel } from "@/components/SettingsPanel";
-import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
-import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
+import dynamic from "next/dynamic";
+
+// Lazy-load secondary heavy modules to prioritize LCP on initial load
+const LeadsTable = dynamic(() => import("@/components/LeadsTable").then(mod => mod.LeadsTable), { ssr: false });
+const LeadEngine = dynamic(() => import("@/components/LeadEngine").then(mod => mod.LeadEngine), { ssr: false });
+const SettingsPanel = dynamic(() => import("@/components/SettingsPanel").then(mod => mod.SettingsPanel), { ssr: false });
+const AnalyticsDashboard = dynamic(() => import("@/components/AnalyticsDashboard").then(mod => mod.AnalyticsDashboard), { ssr: false });
+const LeadDetailDrawer = dynamic(() => import("@/components/LeadDetailDrawer").then(mod => mod.LeadDetailDrawer), { ssr: false });
+const AddLeadModal = dynamic(() => import("@/components/AddLeadModal").then(mod => mod.AddLeadModal), { ssr: false });
 import { db } from "@/lib/firebaseClient";
 import { collection, query, onSnapshot, doc, updateDoc, getDoc, where, writeBatch, arrayUnion } from "firebase/firestore";
 import { LogIn, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
 import { useNotification } from "@/contexts/NotificationContext";
-import { AddLeadModal } from "@/components/AddLeadModal";
+
 
 
 
