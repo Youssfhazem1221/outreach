@@ -205,8 +205,11 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin, onAdd
         <div className="hidden xl:flex items-center gap-4 mr-4">
           {LEAD_STATUSES.map((s) => (
             <div key={s.value} className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.hex }} />
-              <span className="text-[9px] text-white/30 font-medium">{s.label}</span>
+              <div
+                className="w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: s.hex, boxShadow: `0 0 8px ${s.hex}90` }}
+              />
+              <span className="text-[10px] text-white/50 font-medium tracking-wide">{s.label}</span>
             </div>
           ))}
         </div>

@@ -296,7 +296,7 @@ export function LeadsTable({
       </div>
 
       {/* Filter Toolbar */}
-      <div className="glass p-4 rounded-3xl border border-white/10 flex flex-wrap items-center gap-4 shadow-xl">
+      <div className="glass p-4 rounded-3xl border border-white/10 flex flex-wrap items-center gap-4 shadow-xl relative z-30">
         <div className="relative flex-1 min-w-[280px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input 

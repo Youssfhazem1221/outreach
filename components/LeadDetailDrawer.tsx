@@ -157,24 +157,25 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
   return (
     <AnimatePresence>
       {isOpen && lead && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-          />
+        <motion.div
+          key="backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+        />
+      )}
 
-          {/* Drawer */}
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 h-full w-[520px] max-w-[100vw] bg-[#0a0a0a] border-l border-white/[0.07] z-50 flex flex-col shadow-2xl overflow-hidden"
-          >
+      {isOpen && lead && (
+        <motion.div
+          key="drawer"
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="fixed right-0 top-0 h-full w-[520px] max-w-[100vw] bg-[#0a0a0a] border-l border-white/[0.07] z-50 flex flex-col shadow-2xl overflow-hidden"
+        >
             {/* Status color left stripe */}
             {(() => {
               const s = getStatusStyle(lead.status);
@@ -537,7 +538,6 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
               )}
             </AnimatePresence>
           </motion.div>
-        </>
       )}
 
       <CustomModal 
