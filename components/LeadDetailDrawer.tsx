@@ -259,9 +259,9 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
 
               {/* Labels */}
               <div className="flex flex-wrap gap-2 items-center relative" ref={dropdownRef}>
-                {(lead.labels || []).map((label: LabelRecord) => (
+                {(lead.labels || []).map((label: LabelRecord, idx: number) => (
                   <span
-                    key={label.id}
+                    key={label.id || `label-${idx}`}
                     className="text-xs px-2 py-1 rounded-md font-medium border border-white/10 flex items-center gap-1"
                     style={{ backgroundColor: `${label.color}20`, color: label.color }}
                   >
@@ -282,11 +282,11 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                       <p className="text-xs text-muted-foreground p-2">No labels configured.</p>
                     ) : (
                       <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
-                        {globalLabels.map(label => {
+                        {globalLabels.map((label, idx) => {
                           const isApplied = (lead.labels || []).some((l: LabelRecord) => l.id === label.id);
                           return (
                             <button
-                              key={label.id}
+                              key={label.id || `g-label-${idx}`}
                               onClick={() => toggleLeadLabel(label)}
                               className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 text-left transition-colors"
                             >
@@ -342,8 +342,8 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                   {(lead.history?.length || 0) === 0 ? (
                     <p className="pl-7 text-sm text-muted-foreground italic">No activity yet.</p>
                   ) : (
-                    [...(lead.history || [])].reverse().map((item: any) => (
-                      <div key={item.id} className="relative pl-7">
+                    [...(lead.history || [])].reverse().map((item: any, idx: number) => (
+                      <div key={item.id || `history-${idx}`} className="relative pl-7">
                         <div className="absolute left-0 top-1.5 w-5 h-5 rounded-full bg-[#111] border border-white/10 flex items-center justify-center">
                           <MessageSquare size={9} className="text-emerald-500" />
                         </div>

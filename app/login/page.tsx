@@ -38,6 +38,22 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    try {
+      setError(null);
+      setIsSubmitting(true);
+      await signInWithGoogle();
+    } catch (err: any) {
+      // Ignore if the user just closed the popup
+      if (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request") {
+        return;
+      }
+      setError(err.message || "Failed to sign in with Google.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const isAuthInitializing = loading;
 
   return (
@@ -125,7 +141,7 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={signInWithGoogle}
+          onClick={handleGoogleSignIn}
           disabled={isAuthInitializing || isSubmitting}
           className="w-full flex items-center justify-center gap-3 bg-white text-black hover:bg-gray-100 transition-colors py-3 px-4 rounded-xl font-medium mb-6"
         >
