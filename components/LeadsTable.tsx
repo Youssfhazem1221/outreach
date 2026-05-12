@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Download, Search, Filter, Tag, Trash2, Edit3, ChevronDown, Users, X, Plus } from "lucide-react";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
@@ -31,40 +32,53 @@ interface LeadRowProps {
   onClick: () => void;
 }
 
-const LeadRow = React.memo(({ lead, isSelected, isAdmin, onSelect, onClick }: LeadRowProps) => {
+const LeadRow = React.memo(({ lead, isSelected, isAdmin, onSelect, onClick, index }: LeadRowProps & { index: number }) => {
   const statusStyle = getStatusStyle(lead.status);
-  
+
   return (
-    <tr 
+    <motion.tr
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.6), ease: [0.4, 0, 0.2, 1] }}
       onClick={onClick}
-      className={`hover:bg-white/[0.03] transition-colors group cursor-pointer ${isSelected ? 'bg-emerald-500/5' : ''}`}
+      className={`relative transition-colors group cursor-pointer ${
+        isSelected ? 'bg-emerald-500/[0.06]' : 'hover:bg-white/[0.025]'
+      }`}
     >
-      <td className="px-4 py-3" onClick={(e) => onSelect(lead.id, e)}>
-        <input 
-          type="checkbox" 
+      {/* Left glow on hover */}
+      <td
+        className="px-4 py-3 relative"
+        onClick={(e) => onSelect(lead.id, e)}
+      >
+        <div
+          className="absolute left-0 top-0 bottom-0 w-0.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-r"
+          style={{ background: `linear-gradient(180deg, ${statusStyle.hex}cc, ${statusStyle.hex}44)` }}
+        />
+        <input
+          type="checkbox"
           checked={isSelected}
-          onChange={() => {}} // Controlled via onClick on td
+          onChange={() => {}}
           className="rounded border-white/20 bg-black/40 text-emerald-500 focus:ring-emerald-500 w-3.5 h-3.5 cursor-pointer"
         />
       </td>
       <td className="px-4 py-3">
-        <div className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">{lead.name}</div>
-        {lead.decisionMaker && <div className="text-[10px] text-muted-foreground mt-0.5">{lead.decisionMaker}</div>}
+        <div className="font-bold text-sm text-white/90 group-hover:text-white transition-colors">{lead.name}</div>
+        {lead.decisionMaker && <div className="text-[10px] text-white/35 mt-0.5">{lead.decisionMaker}</div>}
       </td>
       <td className="px-4 py-3">
-        <div className="text-xs font-medium text-white/80">{lead.phone || "—"}</div>
-        {lead.email && <div className="text-[10px] text-muted-foreground mt-0.5">{lead.email}</div>}
+        <div className="text-xs font-medium text-white/70">{lead.phone || "—"}</div>
+        {lead.email && <div className="text-[10px] text-white/30 mt-0.5">{lead.email}</div>}
       </td>
-      <td className="px-4 py-3 text-xs">
+      <td className="px-4 py-3 text-xs text-white/60">
         <div>{lead.city || "—"}</div>
-        {lead.country && <div className="text-[10px] text-muted-foreground">{lead.country}</div>}
+        {lead.country && <div className="text-[10px] text-white/30">{lead.country}</div>}
       </td>
       <td className="px-4 py-3">
-        <span className="text-xs px-2 py-0.5 bg-white/5 rounded-md border border-white/5">{lead.niche}</span>
+        <span className="text-xs px-2 py-0.5 bg-white/[0.04] rounded-md border border-white/[0.06] text-white/60">{lead.niche}</span>
       </td>
       <td className="px-4 py-3">
-        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-          {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt 
+        <span className="text-[10px] text-white/30 whitespace-nowrap">
+          {lead.createdAt && typeof lead.createdAt === "object" && "toMillis" in lead.createdAt
             ? formatRelativeTime(lead.createdAt.toMillis())
             : "—"}
         </span>
@@ -73,39 +87,42 @@ const LeadRow = React.memo(({ lead, isSelected, isAdmin, onSelect, onClick }: Le
         {lead.labels && lead.labels.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {lead.labels.map((label: LabelRecord) => (
-              <span 
-                key={label.id} 
+              <span
+                key={label.id}
                 className="text-[9px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1.5"
-                style={{ backgroundColor: `${label.color}10`, color: label.color, borderColor: `${label.color}30` }}
+                style={{ backgroundColor: `${label.color}12`, color: label.color, borderColor: `${label.color}30` }}
               >
-                <div className="w-1 h-1 rounded-full shadow-sm" style={{ backgroundColor: label.color }} />
+                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
                 {label.name}
               </span>
             ))}
           </div>
         ) : (
-          <span className="text-muted-foreground text-[10px]">—</span>
+          <span className="text-white/20 text-[10px]">—</span>
         )}
       </td>
       <td className="px-4 py-3">
-        <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold border uppercase tracking-wider ${statusStyle.bgClass} ${statusStyle.textClass} ${statusStyle.borderClass}`}>
+        <span
+          className={`text-[10px] px-2.5 py-1 rounded-full font-bold border uppercase tracking-wider flex items-center gap-1.5 w-fit ${statusStyle.bgClass} ${statusStyle.textClass} ${statusStyle.borderClass}`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusStyle.hex }} />
           {lead.status}
         </span>
       </td>
       {isAdmin && (
         <td className="px-4 py-3">
           <div className="flex flex-col">
-            <span className="text-xs font-medium text-white">{lead.userName || "Unknown"}</span>
-            <span className="text-[9px] text-muted-foreground truncate max-w-[100px]">{lead.userEmail}</span>
+            <span className="text-xs font-medium text-white/80">{lead.userName || "Unknown"}</span>
+            <span className="text-[9px] text-white/30 truncate max-w-[100px]">{lead.userEmail}</span>
           </div>
         </td>
       )}
       <td className="px-4 py-3 text-right">
-        <button className="text-emerald-400 hover:text-white font-bold text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all bg-emerald-500/10 px-3 py-1 rounded-lg">
+        <button className="text-emerald-400 hover:text-white font-bold text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1 rounded-lg">
           Manage
         </button>
       </td>
-    </tr>
+    </motion.tr>
   );
 });
 
@@ -353,10 +370,11 @@ export function LeadsTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.03]">
-              {filteredLeads.map((lead) => (
-                <LeadRow 
+              {filteredLeads.map((lead, index) => (
+                <LeadRow
                   key={lead.id}
                   lead={lead}
+                  index={index}
                   isAdmin={!!isAdmin}
                   isSelected={selectedIds.includes(lead.id)}
                   onSelect={toggleSelectLead}

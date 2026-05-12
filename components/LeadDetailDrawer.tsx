@@ -11,6 +11,7 @@ import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
 import { useNotification } from "@/contexts/NotificationContext";
 import { formatDateTime, getTimestamp } from "@/lib/dates";
+import { getStatusStyle } from "@/constants/statuses";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
@@ -172,8 +173,21 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 h-full w-[520px] max-w-[100vw] bg-[#0d0d0d] border-l border-white/10 z-50 flex flex-col shadow-2xl"
+            className="fixed right-0 top-0 h-full w-[520px] max-w-[100vw] bg-[#0a0a0a] border-l border-white/[0.07] z-50 flex flex-col shadow-2xl overflow-hidden"
           >
+            {/* Status color left stripe */}
+            {(() => {
+              const s = getStatusStyle(lead.status);
+              return (
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-[3px] z-10"
+                  style={{
+                    background: `linear-gradient(180deg, ${s.hex}cc 0%, ${s.hex}44 100%)`,
+                    boxShadow: `2px 0 12px ${s.hex}25`,
+                  }}
+                />
+              );
+            })()}
             {/* ── Header ── */}
             <div className="p-6 border-b border-white/10 flex flex-col gap-4 bg-white/[0.02]">
               <div className="flex justify-between items-start gap-3">
@@ -377,12 +391,12 @@ export function LeadDetailDrawer({ lead: initialLead, isOpen, onClose, onUpdateS
                 </div>
 
                 {[
-                  { icon: <Phone size={14} />, field: "phone", placeholder: "Phone number" },
-                  { icon: <Mail size={14} />, field: "email", placeholder: "Email address" },
-                  { icon: <Globe size={14} />, field: "website", placeholder: "Website URL" },
-                ].map(({ icon, field, placeholder }) => (
+                  { icon: <Phone size={14} />, field: "phone", placeholder: "Phone number",    iconBg: "bg-emerald-500/10 text-emerald-400" },
+                  { icon: <Mail size={14} />,  field: "email", placeholder: "Email address",   iconBg: "bg-blue-500/10 text-blue-400"    },
+                  { icon: <Globe size={14} />, field: "website", placeholder: "Website URL",   iconBg: "bg-violet-500/10 text-violet-400" },
+                ].map(({ icon, field, placeholder, iconBg }) => (
                   <div key={field} className="flex items-center gap-3">
-                    <span className="text-muted-foreground shrink-0">{icon}</span>
+                    <span className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${iconBg}`}>{icon}</span>
                     {isEditing ? (
                       <input
                         className="flex-1 bg-white/5 border border-white/10 outline-none focus:border-emerald-500 text-sm rounded-lg px-2 py-1.5 transition-colors"

@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   PieChart,
@@ -14,6 +12,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Area,
+  AreaChart,
 } from "recharts";
 import { TrendingUp, Users, Target, Activity, MapPin, Tag, Flame, Globe } from "lucide-react";
 import { Lead, LabelRecord } from "@/types/lead";
@@ -264,13 +264,27 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
           </header>
           <div className="h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={volumeData}>
+              <AreaChart data={volumeData}>
+                <defs>
+                  <linearGradient id="velocityGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip content={<DarkTooltip />} />
-                <Line type="monotone" dataKey="leads" stroke="#10b981" strokeWidth={4} dot={{ fill: "#10b981", r: 4, strokeWidth: 0 }} activeDot={{ r: 8, strokeWidth: 0 }} />
-              </LineChart>
+                <Area
+                  type="monotone"
+                  dataKey="leads"
+                  stroke="#10b981"
+                  strokeWidth={2.5}
+                  fill="url(#velocityGrad)"
+                  dot={{ fill: "#10b981", r: 0, strokeWidth: 0 }}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: "#10b981", fill: "#000" }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </section>
@@ -355,14 +369,33 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
 
 function KpiCard({ icon, label, value, sub, color }: { icon: ReactNode; label: string; value: string | number; sub: string; color: string }) {
   const styles = KPI_COLOR_MAP[color] || KPI_COLOR_MAP.emerald;
+  const isNumber = typeof value === "number";
+  const [displayed, setDisplayed] = useState(isNumber ? 0 : value);
+
+  useEffect(() => {
+    if (!isNumber) { setDisplayed(value); return; }
+    const target = value as number;
+    const duration = 900;
+    const start = performance.now();
+    const raf = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setDisplayed(Math.round(eased * target));
+      if (progress < 1) requestAnimationFrame(raf);
+    };
+    requestAnimationFrame(raf);
+  }, [value, isNumber]);
+
   return (
-    <div className={`bg-gradient-to-br ${styles.card} border rounded-[2rem] p-6 flex flex-col gap-4 shadow-xl hover:scale-[1.02] transition-transform cursor-default group`}>
+    <div className={`bg-gradient-to-br ${styles.card} border rounded-[2rem] p-6 flex flex-col gap-4 shadow-xl hover:scale-[1.02] transition-all duration-300 cursor-default group hover:shadow-2xl`}>
       <div className={`flex items-center gap-3 ${styles.accent}`}>
-        <div className="p-2 bg-white/5 rounded-xl group-hover:bg-white/10 transition-colors">{icon}</div>
+        <div className="p-2.5 bg-white/5 rounded-xl group-hover:bg-white/10 transition-colors border border-white/[0.06]">{icon}</div>
         <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{label}</span>
       </div>
       <div>
-        <p className="text-4xl font-black tracking-tighter">{value}</p>
+        <p className="text-4xl font-black tracking-tighter tabular-nums" style={{ animation: "count-up 0.4s ease-out" }}>
+          {displayed}
+        </p>
         <p className="text-xs text-muted-foreground mt-1 font-medium">{sub}</p>
       </div>
     </div>

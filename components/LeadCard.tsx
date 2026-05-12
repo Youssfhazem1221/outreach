@@ -2,9 +2,10 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Phone, Mail, MessageCircle, Globe } from "lucide-react";
+import { Phone, Mail, Globe, GripVertical } from "lucide-react";
 import { Lead, LabelRecord } from "@/types/lead";
 import { formatRelativeTime } from "@/lib/dates";
+import { getStatusStyle } from "@/constants/statuses";
 import React from "react";
 
 interface LeadCardProps {
@@ -13,41 +14,50 @@ interface LeadCardProps {
   isAdmin?: boolean;
 }
 
+/** Generate a consistent hue from a string for avatars */
+function stringToHue(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % 360;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2);
+}
+
 function LeadCardComponent({ lead, onClick, isAdmin }: LeadCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
-    data: {
-      type: "Lead",
-      lead,
-    },
+    data: { type: "Lead", lead },
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const getChannelIcon = (channel: string) => {
-    switch (channel?.toLowerCase()) {
-      case "whatsapp": return <MessageCircle size={14} />;
-      case "email": return <Mail size={14} />;
-      default: return <Globe size={14} />;
-    }
-  };
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const statusStyle = getStatusStyle(lead.status);
+  const avatarHue = stringToHue(lead.name || "?");
 
   if (isDragging) {
     return (
-      <div 
-        ref={setNodeRef} 
-        style={style} 
-        className="glass border-emerald-500/50 p-3 rounded-xl opacity-30 h-24" 
+      <div
+        ref={setNodeRef}
+        style={{ ...style, borderColor: statusStyle.hex }}
+        className="border-2 border-dashed rounded-xl opacity-40 h-[88px]"
       />
     );
   }
 
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
-  };
+  const whatsappLink = lead.phone
+    ? `https://wa.me/${lead.phone.replace(/\D/g, "")}`
+    : null;
+  const websiteLink = lead.website
+    ? lead.website.startsWith("http") ? lead.website : `https://${lead.website}`
+    : null;
 
   return (
     <div
@@ -56,61 +66,128 @@ function LeadCardComponent({ lead, onClick, isAdmin }: LeadCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="glass glass-hover p-3 rounded-xl cursor-grab active:cursor-grabbing mb-2 group relative overflow-hidden"
+      className="relative bg-white/[0.04] border border-white/[0.08] rounded-xl cursor-grab active:cursor-grabbing mb-2 group overflow-hidden transition-all duration-200 hover:border-white/20 hover:bg-white/[0.07] hover:shadow-lg"
     >
-      <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-      
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex flex-col min-w-0">
-          <h4 className="font-medium text-sm text-white line-clamp-1 pr-2">{lead.name}</h4>
+      {/* Status color left stripe — always visible */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-200 group-hover:w-[4px]"
+        style={{
+          background: `linear-gradient(180deg, ${statusStyle.hex}dd 0%, ${statusStyle.hex}66 100%)`,
+          boxShadow: `2px 0 8px ${statusStyle.hex}30`,
+        }}
+      />
+
+      <div className="pl-4 pr-3 pt-3 pb-3">
+        {/* Header row: avatar + name + grip */}
+        <div className="flex items-start gap-2.5 mb-2">
+          {/* Company avatar */}
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-black shrink-0 border border-white/10"
+            style={{
+              background: `hsl(${avatarHue}, 55%, 18%)`,
+              color: `hsl(${avatarHue}, 70%, 65%)`,
+              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08)`,
+            }}
+          >
+            {getInitials(lead.name || "?")}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h4 className="font-bold text-sm text-white/90 line-clamp-1 group-hover:text-white transition-colors leading-tight">
+              {lead.name}
+            </h4>
+            <p className="text-[10px] text-white/35 mt-0.5 line-clamp-1">
+              {[lead.niche, lead.city].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+
+          {/* Drag grip — visible on hover */}
+          <div className="opacity-0 group-hover:opacity-40 transition-opacity shrink-0 text-white/50 mt-0.5">
+            <GripVertical size={13} />
+          </div>
         </div>
-        {lead.rating && (
-          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-medium shrink-0">
-            ★ {lead.rating}
-          </span>
+
+        {/* Labels */}
+        {lead.labels && lead.labels.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {lead.labels.map((label: LabelRecord) => (
+              <span
+                key={label.id}
+                className="text-[9px] px-1.5 py-0.5 rounded-md font-bold border flex items-center gap-1"
+                style={{
+                  backgroundColor: `${label.color}18`,
+                  color: label.color,
+                  borderColor: `${label.color}30`,
+                }}
+              >
+                <div className="w-1 h-1 rounded-full" style={{ backgroundColor: label.color }} />
+                {label.name}
+              </span>
+            ))}
+          </div>
         )}
-      </div>
 
-      <p className="text-xs text-muted-foreground line-clamp-1 mb-2">
-        {lead.niche} • {lead.city}
-      </p>
+        {/* Footer: quick-actions + date */}
+        <div className="flex items-center justify-between mt-2">
+          {/* Quick-action buttons — appear on hover */}
+          <div className="flex items-center gap-1.5">
+            {whatsappLink && (
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-all duration-150 w-6 h-6 rounded-md bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 flex items-center justify-center text-emerald-400 hover:scale-110 active:scale-90"
+                title="WhatsApp"
+              >
+                <Phone size={10} />
+              </a>
+            )}
+            {lead.email && (
+              <a
+                href={`mailto:${lead.email}`}
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-all duration-150 delay-[20ms] w-6 h-6 rounded-md bg-blue-500/10 hover:bg-blue-500/25 border border-blue-500/20 flex items-center justify-center text-blue-400 hover:scale-110 active:scale-90"
+                title="Email"
+              >
+                <Mail size={10} />
+              </a>
+            )}
+            {websiteLink && (
+              <a
+                href={websiteLink}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-all duration-150 delay-[40ms] w-6 h-6 rounded-md bg-violet-500/10 hover:bg-violet-500/25 border border-violet-500/20 flex items-center justify-center text-violet-400 hover:scale-110 active:scale-90"
+                title="Website"
+              >
+                <Globe size={10} />
+              </a>
+            )}
 
-      {lead.labels && lead.labels.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {lead.labels.map((label: LabelRecord) => (
-            <span 
-              key={label.id} 
-              className="text-[9px] px-1.5 py-0.5 rounded font-medium border border-white/5 flex items-center gap-1"
-              style={{ backgroundColor: `${label.color}15`, color: label.color }}
-            >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: label.color }} />
-              {label.name}
-            </span>
-          ))}
-        </div>
-      )}
+            {/* Source dot */}
+            {!whatsappLink && !lead.email && !websiteLink && (
+              <div
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: statusStyle.hex, boxShadow: `0 0 6px ${statusStyle.hex}60` }}
+                title={`Source: ${lead.source}`}
+              />
+            )}
 
-      <div className="flex justify-between items-end mt-3">
-        <div className="flex items-center gap-2">
-          {isAdmin && (lead.userName || lead.userEmail) && (
-            <div 
-              className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-400"
-              title={`Owner: ${lead.userName || lead.userEmail}`}
-            >
-              {getInitials(lead.userName || lead.userEmail || "U")}
-            </div>
-          )}
-          <div className={`w-1.5 h-1.5 rounded-full ${lead.source === 'gemini_search' ? 'bg-blue-400' : 'bg-emerald-400'}`} title={`Source: ${lead.source}`} />
-        </div>
+            {/* Admin owner badge */}
+            {isAdmin && (lead.userName || lead.userEmail) && (
+              <div
+                className="w-5 h-5 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[8px] font-bold text-white/40"
+                title={`Owner: ${lead.userName || lead.userEmail}`}
+              >
+                {getInitials(lead.userName || lead.userEmail || "U")}
+              </div>
+            )}
+          </div>
 
-        <div className="flex flex-col items-end gap-1">
-          {lead.channel && (
-            <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-white/5 px-1.5 py-0.5 rounded">
-              {getChannelIcon(lead.channel)}
-              <span className="capitalize">{lead.channel}</span>
-            </div>
-          )}
-          <span className="text-[9px] text-muted-foreground/60 italic">
+          {/* Date pill */}
+          <span className="text-[9px] text-white/25 tabular-nums">
             {formatRelativeTime(lead.createdAt)}
           </span>
         </div>
@@ -120,5 +197,3 @@ function LeadCardComponent({ lead, onClick, isAdmin }: LeadCardProps) {
 }
 
 export const LeadCard = React.memo(LeadCardComponent);
-
-
