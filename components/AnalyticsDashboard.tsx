@@ -303,7 +303,7 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
               <BarChart data={nicheData} layout="vertical" barSize={14}>
                 <XAxis type="number" hide />
                 <YAxis type="category" dataKey="niche" tick={{ fontSize: 11, fill: "#9ca3af", fontWeight: "bold" }} axisLine={false} tickLine={false} width={140} />
-                <Tooltip content={<DarkTooltip />} />
+                <Tooltip content={<DarkTooltip />} cursor={false} />
                 <Bar dataKey="count" fill="#10b981" radius={[0, 8, 8, 0]} />
               </BarChart>
             </ResponsiveContainer>
