@@ -16,6 +16,7 @@ import { LogIn, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Lead, LabelRecord, LeadStatus } from "@/types/lead";
 import { useNotification } from "@/contexts/NotificationContext";
+import { AddLeadModal } from "@/components/AddLeadModal";
 
 
 
@@ -29,6 +30,7 @@ export default function AppShell() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [customLabels, setCustomLabels] = useState<LabelRecord[]>([]);
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
 
   // Deep Link Listener: Auto-open lead from URL ?leadId=...
   useEffect(() => {
@@ -249,6 +251,7 @@ export default function AppShell() {
             onStatusChange={handleStatusChange} 
             onLeadClick={(l) => { setSelectedLead(l); setIsDrawerOpen(true); }}
             isAdmin={role === "admin"}
+            onAddLead={() => setIsAddLeadModalOpen(true)}
           />
         )}
         {currentView === "table" && (
@@ -262,6 +265,7 @@ export default function AppShell() {
             onBulkLabelAdd={handleBulkLabelAdd}
             customLabels={customLabels}
             isAdmin={role === "admin"}
+            onAddLead={() => setIsAddLeadModalOpen(true)}
           />
         )}
         {currentView === "engine" && <LeadEngine customLabels={customLabels} />}
@@ -274,6 +278,12 @@ export default function AppShell() {
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         onUpdateStatus={handleStatusChange}
+      />
+
+      <AddLeadModal
+        isOpen={isAddLeadModalOpen}
+        onClose={() => setIsAddLeadModalOpen(false)}
+        customLabels={customLabels}
       />
     </div>
   );

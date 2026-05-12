@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { Download, Search, Filter, Tag, Trash2, Edit3, ChevronDown, Users, X } from "lucide-react";
+import { Download, Search, Filter, Tag, Trash2, Edit3, ChevronDown, Users, X, Plus } from "lucide-react";
 import { CustomSelect } from "./ui/CustomSelect";
 import { CustomModal } from "./ui/CustomModal";
 import { Lead, LabelRecord } from "@/types/lead";
@@ -18,6 +18,7 @@ interface LeadsTableProps {
   onBulkLabelAdd: (leadIds: string[], labelId: string) => void;
   customLabels: LabelRecord[];
   isAdmin?: boolean;
+  onAddLead?: () => void;
 }
 
 // ─── Sub-Component: Table Row ────────────────────────────────────────────────
@@ -120,7 +121,8 @@ export function LeadsTable({
   onBulkNicheChange,
   onBulkLabelAdd,
   customLabels,
-  isAdmin
+  isAdmin,
+  onAddLead,
 }: LeadsTableProps) {
   // Filter States
   const [filters, setFilters] = useState({
@@ -251,6 +253,15 @@ export function LeadsTable({
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">
+          {onAddLead && (
+            <button
+              onClick={onAddLead}
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 px-5 py-2.5 rounded-2xl transition-all text-xs font-bold text-white shadow-lg shadow-emerald-500/20 active:scale-95"
+            >
+              <Plus size={16} /> Add Lead
+            </button>
+          )}
+
           <button 
             onClick={handleDedupScan}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-5 py-2.5 rounded-2xl transition-all text-xs font-bold text-red-400 active:scale-95"

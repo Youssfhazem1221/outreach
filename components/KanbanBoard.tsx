@@ -22,12 +22,14 @@ import {
 import { LeadCard } from "./LeadCard";
 import { useDroppable } from "@dnd-kit/core";
 import { Lead } from "@/types/lead";
+import { Plus } from "lucide-react";
 
 interface KanbanBoardProps {
   leads: Lead[];
   onStatusChange: (leadId: string, newStatus: string) => void;
   onLeadClick: (lead: Lead) => void;
   isAdmin?: boolean;
+  onAddLead?: () => void;
 }
 
 const COLUMNS = ["New", "Contacted", "Replied", "Call Booked", "Closed", "Not Interested"];
@@ -57,7 +59,7 @@ const KanbanColumn = React.memo(({ title, leads, onLeadClick, isAdmin }: { title
 
 KanbanColumn.displayName = "KanbanColumn";
 
-export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: KanbanBoardProps) {
+export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin, onAddLead }: KanbanBoardProps) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
   // Memoize grouped leads to prevent redundant filtering in render
@@ -112,31 +114,48 @@ export function KanbanBoard({ leads, onStatusChange, onLeadClick, isAdmin }: Kan
   };
 
   return (
-    <div className="h-full flex gap-4 overflow-x-auto pb-4 p-6 selection:bg-emerald-500/20">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        {columnsData.map((col) => (
-          <KanbanColumn
-            key={col.title}
-            title={col.title}
-            leads={col.leads}
-            onLeadClick={onLeadClick}
-            isAdmin={isAdmin}
-          />
-        ))}
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Board header with Add Lead CTA */}
+      {onAddLead && (
+        <div className="px-6 pt-5 pb-2 flex items-center justify-between shrink-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/40">
+            Pipeline Board — Drag cards to change status
+          </p>
+          <button
+            onClick={onAddLead}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+          >
+            <Plus size={14} /> Add Lead
+          </button>
+        </div>
+      )}
 
-        <DragOverlay zIndex={1000}>
-          {activeLead ? (
-            <div className="rotate-2 scale-105 shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-grabbing">
-              <LeadCard lead={activeLead} onClick={() => {}} isAdmin={isAdmin} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      <div className="flex-1 flex gap-4 overflow-x-auto pb-4 px-6 pt-2 selection:bg-emerald-500/20">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {columnsData.map((col) => (
+            <KanbanColumn
+              key={col.title}
+              title={col.title}
+              leads={col.leads}
+              onLeadClick={onLeadClick}
+              isAdmin={isAdmin}
+            />
+          ))}
+
+          <DragOverlay zIndex={1000}>
+            {activeLead ? (
+              <div className="rotate-2 scale-105 shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-grabbing">
+                <LeadCard lead={activeLead} onClick={() => {}} isAdmin={isAdmin} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
     </div>
   );
 }
