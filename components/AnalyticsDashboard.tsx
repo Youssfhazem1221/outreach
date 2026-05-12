@@ -68,10 +68,15 @@ const STATUS_ORDER = ["New", "Contacted", "Replied", "Call Booked", "Closed", "N
 
 function normalizeText(value: unknown, fallback: string) {
   if (typeof value === "string") {
-    const trimmed = value.trim();
+    const trimmed = value.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
     return trimmed || fallback;
   }
   return fallback;
+}
+
+function toTitleCase(str: string) {
+  if (!str || str === "Unknown") return str;
+  return str.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
 
 function DarkTooltip({ active, payload, label }: any) {
@@ -141,10 +146,7 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
   const nicheData = useMemo(() => {
     const counts: Record<string, number> = {};
     leads.forEach((lead) => {
-      let niche = normalizeText(lead.niche, "Unknown");
-      if (niche !== "Unknown") {
-        niche = niche.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      }
+      let niche = toTitleCase(normalizeText(lead.niche, "Unknown"));
       counts[niche] = (counts[niche] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([niche, count]) => ({ niche, count }));
@@ -155,7 +157,7 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
     leads.forEach((lead) => {
       let channel = normalizeText(lead.channel, "Website");
       if (channel.toLowerCase() === "x") channel = "Twitter";
-      channel = channel.charAt(0).toUpperCase() + channel.slice(1).toLowerCase();
+      channel = toTitleCase(channel);
       counts[channel] = (counts[channel] || 0) + 1;
     });
     const sorted = Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -170,10 +172,7 @@ export function AnalyticsDashboard({ leads }: AnalyticsDashboardProps) {
   const cityData = useMemo(() => {
     const counts: Record<string, number> = {};
     leads.forEach((lead) => {
-      let city = normalizeText(lead.city, "Unknown");
-      if (city !== "Unknown") {
-        city = city.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-      }
+      let city = toTitleCase(normalizeText(lead.city, "Unknown"));
       counts[city] = (counts[city] || 0) + 1;
     });
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([city, count], index) => ({ city, count, rank: index + 1 }));

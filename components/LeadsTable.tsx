@@ -170,9 +170,15 @@ export function LeadsTable({
   // ─── Memoized Data ─────────────────────────────────────────────────────────
 
   const uniqueNiches = useMemo(() => {
-    return Array.from(new Set(leads.map(l => l.niche?.toLowerCase()).filter(Boolean)))
-      .map(n => leads.find(l => l.niche?.toLowerCase() === n)?.niche)
-      .sort();
+    const set = new Set<string>();
+    leads.forEach(l => {
+      if (!l.niche) return;
+      const cleaned = l.niche.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+      if (!cleaned) return;
+      const tc = cleaned.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      set.add(tc);
+    });
+    return Array.from(set).sort();
   }, [leads]);
 
   const uniqueOwners = useMemo(() => {
@@ -187,7 +193,14 @@ export function LeadsTable({
         lead.phone?.includes(filters.search);
         
       const matchesStatus = filters.status === "All" || lead.status === filters.status;
-      const matchesNiche = filters.niche === "All" || lead.niche?.toLowerCase() === filters.niche.toLowerCase();
+      
+      let matchesNiche = filters.niche === "All";
+      if (!matchesNiche && lead.niche) {
+        const cleaned = lead.niche.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+        const tc = cleaned.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        matchesNiche = tc.toLowerCase() === filters.niche.toLowerCase();
+      }
+
       const matchesLabel = filters.label === "All" || (lead.labels && lead.labels.some((l: LabelRecord) => l.id === filters.label));
       const matchesOwner = filters.owner === "All" || lead.userEmail === filters.owner;
       
